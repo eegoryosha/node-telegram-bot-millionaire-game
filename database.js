@@ -1,0 +1,242 @@
+const mongoose = require(`mongoose`);
+const config = require(`./config.json`);
+
+// ДОСТАЕМ СХЕМУ
+const Schema = mongoose.Schema;
+
+const queSchema = Schema({
+    question: String,
+    answers: Array
+});
+
+const userSchema = Schema({
+    _id: Number,
+    userName: String,
+    questionCount: Number,
+    passedQuestions: Array,
+    currentQuestion: String,
+    currentAnswers: Array,
+    correctAnswer: String,
+    pickedAnswer: String,
+    questionLvlText: String,
+    lastMessageId: String,
+    mainMessageId: String,
+    isInGame: Boolean,
+    isSecondLife: Boolean
+});
+
+
+// ДОСТАЕМ МОДЕЛЬ КОЛЛЕКЦИИ 
+const questionsLvl0 = mongoose.model('lvl0', queSchema);
+const questionsLvl1 = mongoose.model('lvl1', queSchema); // (Название коллекции, Схема)
+const questionsLvl2 = mongoose.model('lvl2', queSchema);
+const questionsLvl3 = mongoose.model('lvl3', queSchema);
+const users = mongoose.model('users', userSchema);
+
+
+// console.log(typeof(questionsLvl0));
+// СОЗДАЕТ И ДОБАВЛЯЕТ
+// users.create({
+//     _id: 12312333,
+//     userName: 'igoryosha',
+//     kek: questionsLvl3
+// }).then((user)=>{
+//     users.find({}).exec(async (err, res)=>{
+//         if(err){
+//             console.log(err);
+//             return;
+//         }
+//         console.log('res0: '+res[0].userName);   
+//     });
+//     console.log(user);   
+// }).catch(err=>{
+//     console.log(err);
+// });
+
+//ИЩЕТ И АПДЕЙТИТ
+// users.findOneAndUpdate({_id: 369591320}, {
+//     userName: 'Я 123123'   
+// }).then(()=>{
+//     users.find({}).exec((err, res)=>{
+//         console.log(res[0].userName); 
+//     });
+// });
+
+//ДОСТАЕТ ПОЛНУЮ ТАБЛИЦУ
+// questionsLvl0.find({}, (err, res)=>{
+//     console.log('kek '+res[0].question)
+// });
+
+//ПОМЕСТИТЬ ДАННЫЕ В ОТДЕЛЬНУЮ ПЕРЕМЕННУЮ
+// async function getRes(){
+//     let myDate = await users.find({_id: 369591320});
+//     console.log(myDate[0].userName);
+// }
+// getRes();
+
+
+// ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯ В БАЗУ ДАННЫХ 
+async function addOrRefreshUser(ctx) {
+    users.find({
+        _id: ctx.message.from.id,
+    }, (err, res) => {
+        if (res[0] == undefined) {
+            console.log('pusto')
+            users.create({
+                _id: ctx.message.from.id,
+                userName: ctx.message.from.first_name,
+                questionCount: 1,
+                passedQuestions: [],
+                currentQuestion: '',
+                currentAnswers: [],
+                correctAnswer: '',
+                pickedAnswer: '',
+                questionLvlText: '',
+                lastMessageId: '',
+                mainMessageId: '',
+                isInGame: false,
+                isSecondLife: false
+            });
+        } else {
+            console.log('ne pusto');
+            users.findOneAndUpdate({
+                _id: res[0]._id
+            }, {
+                questionCount: 1,
+                passedQuestions: [],
+                currentQuestion: '',
+                currentAnswers: [],
+                correctAnswer: '',
+                pickedAnswer: '',
+                questionLvlText: '',
+                lastMessageId: '',
+                mainMessageId: '',
+                isInGame: false,
+                isSecondLife: false
+            }).then(() => { // почему-то без .then не работает
+
+            });
+        }
+    });
+}
+
+
+function updateUserData(userId, attribute, data, callback) { // callback - то, что будет выполняться после апдейта
+    users.findOneAndUpdate({
+        _id: userId
+    }, {
+        [attribute]: data
+    }).then(() => {
+        callback();
+    });
+}
+
+async function getUserData(userId, attribute) {
+    let data = await users.find({ 
+        _id: userId
+    }, {
+        [attribute]: true // true означает, что это поле будет выводиться
+    }); // find(ищем юзера, поля для вывода, функция)
+    return data[0][attribute]; 
+}
+
+
+
+// ДОСТАЕМ ВСЕ ЗАПИСИ ИЗ КОЛЛЕКЦИИ
+questionsLvl0.find({}).exec((err, res) => {
+    if (err) {
+        console.log(err);
+        return;
+    }
+    console.log('res0: ' + res[5].question); // ДОСТАЮ ПЕРВУЮ ЗАПИСЬ В КОЛЛЕКЦИИ Lvl1
+});
+questionsLvl1.find({}).exec((err, res) => {
+    if (err) {
+        console.log(err);
+        return;
+    }
+    console.log('res1: ' + res[5].question); // ДОСТАЮ ПЕРВУЮ ЗАПИСЬ В КОЛЛЕКЦИИ Lvl1
+});
+questionsLvl2.find({}).exec((err, res) => {
+    if (err) {
+        console.log(err);
+        return;
+    }
+    console.log('res2: ' + res[0].question); // ДОСТАЮ ПЕРВУЮ ЗАПИСЬ В КОЛЛЕКЦИИ Lvl2
+});
+
+questionsLvl3.find({}).exec((err, res) => {
+    if (err) {
+        console.log(err);
+        return;
+    }
+    console.log('res3: ' + res[0].question); // ДОСТАЮ ПЕРВУЮ ЗАПИСЬ В КОЛЛЕКЦИИ Lvl3
+});
+
+
+
+// const userSchema = new mongoose.Schema({
+//     name:{
+//         type: String,
+//         required: true,
+//     },
+//     email:{
+//         type: String,
+//         required: true,
+//     }
+// });
+
+// const Users = mongoose.model('Users', userSchema);
+
+// app.get('/', (req, res) => {
+//     Users.create({
+//         name: 'Igor2',
+//         email: 'satafakapchannel@gmail.com',
+//     })
+//     .then(user => {
+//         res.send(user);
+
+//     })
+//     .catch(err => res.send(err));
+// });
+
+// const server = createServer(app);
+// server.listen(port, () => console.log(`server is up. port: ${port}`));
+
+
+
+
+
+
+
+
+
+// ФУНКЦИЯ ДЛЯ ПОДКЛЮЧЕНИЯ БАЗЫ MONGODB
+async function initialize() {
+    // ПЕРЕДАЕМ ССЫЛКУ И НАСТРОЙКИ
+    await mongoose.connect(config.mongo, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            useFindAndModify: false
+        })
+        .then(() => console.log('MongoDB connected'))
+        .catch((error) => console.log(error));
+}
+
+
+
+
+
+
+// ЭКСПОРТЫ
+module.exports = {
+    initialize: initialize,
+    questionsLvl0: questionsLvl0,
+    questionsLvl1: questionsLvl1,
+    questionsLvl2: questionsLvl2,
+    questionsLvl3: questionsLvl3,
+    users: users,
+    addOrRefreshUser: addOrRefreshUser,
+    updateUserData: updateUserData,
+    getUserData: getUserData
+};
