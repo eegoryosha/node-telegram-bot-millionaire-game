@@ -76,15 +76,15 @@ const users = mongoose.model('users', userSchema);
 
 
 // ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯ В БАЗУ ДАННЫХ 
-async function addOrRefreshUser(ctx) {
+async function addOrRefreshUser(userId, userName) {
     users.find({
-        _id: ctx.message.from.id,
+        _id: userId,
     }, (err, res) => {
         if (res[0] == undefined) {
             console.log('pusto')
             users.create({
-                _id: ctx.message.from.id,
-                userName: ctx.message.from.first_name,
+                _id: userId,
+                userName: userName, 
                 questionCount: 1,
                 passedQuestions: [],
                 currentQuestion: '',
@@ -121,22 +121,40 @@ async function addOrRefreshUser(ctx) {
 }
 
 
-function updateUserData(userId, attribute, data, callback) { // callback - то, что будет выполняться после апдейта
-    users.findOneAndUpdate({
-        _id: userId
-    }, {
-        [attribute]: data
-    }).then(() => {
-        callback();
-    });
+function updateUserData(pushOrReplace, userId, attribute, data, callback) { // callback - то, что будет выполняться после апдейта
+    if(pushOrReplace == 'replace'){
+        users.findOneAndUpdate({
+            _id: userId
+        }, {
+            [attribute]: data
+        }).then(() => {
+            if(callback != null){
+                callback();
+            }
+        });
+    } else if(pushOrReplace == 'push'){
+        users.findOneAndUpdate({
+            _id: userId
+        }, {
+            $push: {
+                [attribute]: data
+            } 
+        }).then(()=>{
+            if(callback != null){
+                callback();
+            }
+        });
+    }
 }
+
+
 
 async function getUserData(userId, attribute) {
     let data = await users.find({ 
         _id: userId
     }, {
         [attribute]: true // true означает, что это поле будет выводиться
-    }); // find(ищем юзера, поля для вывода, функция)
+    }); // find(какого юзера ищем, поля для вывода, функция)
     return data[0][attribute]; 
 }
 

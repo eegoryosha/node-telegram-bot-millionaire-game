@@ -4,7 +4,7 @@ const promptsKeyboard = require('./keyboards/promptsKeyboards');
 const moneyKeyboard = require('./keyboards/moneyKeyboard');
 
 // ПОДКЛЮЧАЮ БД
-(async function main() {
+(async function main() { 
     await DB.initialize();
 })();
 
@@ -77,7 +77,7 @@ bot.launch(); // запуск бота
 
 bot.use((ctx, next) => {
     console.log(promptsKeyboard.fiftyFifty.isActive);
-
+    
     next();
 });
 
@@ -85,7 +85,7 @@ function refresh() {
     questionCount = 1;
     passedQuestions = [];
     currentQuestion = '';
-    currentAnswers = [];
+    currentAnswers = [];  
     correctAnswer = '';
     questionLvl = '';
     lastMessageId = '';
@@ -100,18 +100,17 @@ function refresh() {
 // РЕАКЦИЯ НА КОМАНДУ /start
 bot.action('try_again', (ctx) => {
     setTimeout(() => {
-        DB.addOrRefreshUser(ctx);
+        DB.addOrRefreshUser(ctx.update.callback_query.from.id, ctx.update.callback_query.from.first_name); // контекст от бота !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         start(ctx);
     }, 3000);
 });
 
 bot.start(async (ctx) => {
-    console.log(ctx);
     setTimeout(() => {
-        DB.addOrRefreshUser(ctx);
+        DB.addOrRefreshUser(ctx.message.from.id, ctx.message.from.first_name);
         start(ctx);
     }, 3000);
-});
+}); 
 
 async function start(ctx) {
     if (mainMessageId != null && mainMessageId != undefined && mainMessageId != '' && mainMessageId != 'string') {
@@ -189,7 +188,7 @@ bot.on('text', async ctx => {
         ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
         isInGame = false;
         const keyboard = Keyboard.make([
-            Key.callback('Да', questionCount == 1 ? 'take_money_yes_alert' : 'take_money_yes'),
+            Key.callback('Да', await DB.getUserData(ctx.message.from.id, 'questionCount') == 1 ? 'take_money_yes_alert' : 'take_money_yes'),
             Key.callback('Нет', 'say_no')
         ], {
             columns: 1
@@ -232,6 +231,8 @@ bot.action('fiftyFifty_yes', async ctx => {
     ], {
         columns: 1
     });
+    const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
+    const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
     lastMessageId = await ctx.replyWithHTML(moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + '\n________________________________________________\n\nВопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): \n\n' + currentQuestion, keyboard.inline());
     isInGame = true;
 });
@@ -247,6 +248,8 @@ bot.action('say_no', async ctx => {
     ], {
         columns: 1
     });
+    const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
+    const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
     lastMessageId = await ctx.replyWithHTML(moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + '\n________________________________________________\n\nВопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): \n\n' + currentQuestion, keyboard.inline());
     isInGame = true;
 
@@ -277,6 +280,8 @@ bot.action('secondLife_yes', async ctx => {
         }
 
     }
+    const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
+    const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
     lastMessageId = await ctx.replyWithHTML(moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + '\n________________________________________________\n\nВопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): \n\n' + currentQuestion, keyboard.inline());
     isInGame = true;
 });
@@ -303,6 +308,7 @@ bot.action('take_money_yes', async ctx => {
     const keyboard = Keyboard.make([
         Key.callback('Сыграть еще раз', 'try_again')
     ]);
+    const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
     lastMessageId = await ctx.replyWithHTML(`Вы забрали <code>${moneyKeyboard.money[questionCount-2]}</code>`, keyboard.inline());
 });
 bot.action('take_money_yes_alert', async ctx => {
@@ -310,14 +316,10 @@ bot.action('take_money_yes_alert', async ctx => {
 });
 
 let questionCount = 1; // номер вопроса
-async function questionCount1(ctx){ 
-    return await DB.getUserData(ctx.message.from.id, 'questionCount');    /////////////////////////////////////////
-}
-
-
 let passedQuestions = []; // текста вопросов, которые уже были
 let currentQuestion = ''; // текст текущего вопроса
 let currentAnswers = []; // текущие варианты ответа
+
 let correctAnswer = ''; // текст правильного ответа
 let pickedAnswer = ''; // текст выбранного ответа 
 let questionLvl; // текущий уровень вопросов
@@ -326,7 +328,8 @@ let mainMessageId = ''; // главное сообщение
 let isInGame = false; // флажок состояния игры для подсказок 
 let isSecondLife = false; // работает ли подсказка право на ошибку
 
-function pickRandomQuestion(ctx) {
+async function pickRandomQuestion(ctx) {
+    const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
     isSecondLife = false;
     if (questionCount <= 2) {
         questionLvl = DB.questionsLvl0;
@@ -345,27 +348,31 @@ function pickRandomQuestion(ctx) {
 
 // ВЫБОР ВОПРОСА ИЗ БД
 function createQuestion(lvl, ctx) {
-    lvl.find({}).exec((err, res) => {
+    lvl.find({}).exec(async (err, res) => {
         if (err) {
             console.log(err);
         } else {
-            let questionIndex = Math.floor(Math.random() * res.length);
-            currentQuestion = res[questionIndex].question;
-
+            let random = Math.floor(Math.random() * res.length); 
+            DB.updateUserData('replace', ctx.update.callback_query.from.id, 'currentQuestion', res[random].question);
+            const passedQuestions = await DB.getUserData(ctx.update.callback_query.from.id, 'passedQuestions'); 
+            const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
+            console.log(passedQuestions);
             if (!passedQuestions.includes(currentQuestion)) {
-                passedQuestions.push(currentQuestion);
+                DB.updateUserData('push', ctx.update.callback_query.from.id, 'passedQuestions', currentQuestion);
                 drawQuestionKeyboard(ctx);
             } else {
                 console.log('повторился вопрос: ' + currentQuestion);
-                pickRandomQuestion(ctx);
+                pickRandomQuestion(ctx); 
             }
         }
     });
 }
 
 // ПОКАЗ ВОПРОСА НА ЭКРАН 
-function drawQuestionKeyboard(ctx) {
+async function drawQuestionKeyboard(ctx) {
     currentAnswers = [];
+    const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
+    const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
     questionLvl.find({
         question: currentQuestion
     }, async (err, res) => {
@@ -388,6 +395,7 @@ function drawQuestionKeyboard(ctx) {
             ], {
                 columns: 1
             });
+            
             lastMessageId = await ctx.replyWithHTML(moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + '\n________________________________________________\n\nВопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): \n\n' + currentQuestion, keyboard.inline());
             isInGame = true;
         }
@@ -397,9 +405,7 @@ function drawQuestionKeyboard(ctx) {
 
 
 
-bot.on('callback_query', async ctx => { 
-    
-
+bot.on('callback_query', async ctx => {  
     // ПРОВЕРКА ПРАВИЛЬНОСТИ ОТВЕТА
     if (currentAnswers.includes(ctx.update.callback_query.data)) {
         pickedAnswer = ctx.update.callback_query.data;
@@ -409,14 +415,16 @@ bot.on('callback_query', async ctx => {
         }
 
         if (correctAnswer == ctx.update.callback_query.data) {
-            questionCount++;
+            let questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
+            questionCount++; 
+            DB.updateUserData('replace', ctx.update.callback_query.from.id, 'questionCount', questionCount);
             if (questionCount == 16) {
                 lastMessageId = await ctx.replyWithHTML('Вы победили! Ваш выигрыш: <code>3 000 000 рублей!</code>');
                 isInGame = false;
             } else {
                 let message = await ctx.replyWithHTML('И это правильный ответ! \nВаш выигрыш составляет <code>' + (moneyKeyboard.money[questionCount - 2]) + '</code>\n\nПереходим к следующему вопросу...');
                 isInGame = false;
-                setTimeout(() => {
+                setTimeout(() => {  
                     ctx.deleteMessage(message.message_id, message.chat.id);
                     pickRandomQuestion(ctx);
                 }, 3000);
@@ -434,6 +442,8 @@ bot.on('callback_query', async ctx => {
                 ], {
                     columns: 1
                 });
+                const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
+                const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
                 lastMessageId = await ctx.replyWithHTML(moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + '\n________________________________________________\n\nВопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): \n\n' + currentQuestion, keyboard.inline());
                 isInGame = true;
                 isSecondLife = false;
@@ -449,7 +459,7 @@ bot.on('callback_query', async ctx => {
                     }
                 }
             }
-            // ЕСЛИ НЕ ДЕЙСТВУЕТ
+            // ЕСЛИ НЕ ДЕЙСТВУЕТ ПОДСКАЗКА Право на ошибку
             else {
                 isInGame = false;
                 const keyboard = Keyboard.make([
@@ -462,7 +472,16 @@ bot.on('callback_query', async ctx => {
                 ], {
                     columns: 1
                 });
-                lastMessageId = await ctx.replyWithHTML(`И это неправильный ответ. Вы проиграли!\n\nВы остановились на <code>${moneyKeyboard.money[questionCount-1]}</code>`, keyboard.inline());
+                let questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
+                let gain;
+                let pickedMoney = moneyKeyboard.pickedMoney.replace(/\s+/g, '');
+                let currentMoney = moneyKeyboard.money[questionCount-1].replace(/\s+/g, '');
+                if(parseInt(currentMoney) > parseInt(pickedMoney)){
+                    gain = moneyKeyboard.pickedMoney;
+                } else {
+                    gain = '0 руб.';
+                }
+                lastMessageId = await ctx.replyWithHTML(`И это неправильный ответ. Вы проиграли!\n\nВаш выигрыш: <code>${gain}</code>`, keyboard.inline());
 
                 function createLuseButtons(letter, answer) {
                     switch (answer) {
@@ -516,18 +535,5 @@ function shuffle(arr) {
     }
     return arr;
 }
+ 
 
-
-module.exports = {
-    questionCount: questionCount,
-    passedQuestions: passedQuestions,
-    currentQuestion: currentQuestion,
-    currentAnswers: currentAnswers,
-    correctAnswer: correctAnswer,
-    pickedAnswer: pickedAnswer,
-    questionLvl: questionLvl,
-    lastMessageId: lastMessageId,
-    mainMessageId: mainMessageId,
-    isInGame: isInGame,
-    isSecondLife: isSecondLife
-};
