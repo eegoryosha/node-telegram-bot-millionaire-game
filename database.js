@@ -123,15 +123,33 @@ async function addOrRefreshUser(userId, userName) {
 
 function updateUserData(pushOrReplace, userId, attribute, data, callback) { // callback - то, что будет выполняться после апдейта
     if(pushOrReplace == 'replace'){
-        users.findOneAndUpdate({
-            _id: userId
-        }, {
-            [attribute]: data
-        }).then(() => {
-            if(callback != null){
-                callback();  
-            }
-        });
+        if(attribute.substr(-3, 1) == '[' && isNaN(attribute.substr(-2, 1)) == false && attribute.substr(-1) == ']'){
+            let str = attribute.slice(0, -3);
+            let index = attribute.substr(-2, 1);
+            let attr = str + '.' + index;
+
+            users.findOneAndUpdate({
+                _id: userId
+            },{
+                $set:{
+                    [attr]: data,
+                }
+            }).then(()=>{
+                if(callback != null){
+                    callback();
+                }
+            });
+        } else{
+            users.findOneAndUpdate({
+                _id: userId
+            }, {
+                [attribute]: data
+            }).then(() => {
+                if(callback != null){
+                    callback();  
+                }
+            });
+        }
     } else if(pushOrReplace == 'push'){
         users.findOneAndUpdate({
             _id: userId
@@ -146,19 +164,11 @@ function updateUserData(pushOrReplace, userId, attribute, data, callback) { // c
         });
     }
 }
-let kek = 'currentAnswers.' + 0;
-
-let kek2 = users.find({_id: 369591320});
-users.findOneAndUpdate({
-    _id: 369591320
-},{
-    $set:{
-        [kek]: '11122222222221',
-    }
-}).then();
 
 
-users.find({_id: 369591320});
+
+
+
 
 
 async function getUserData(userId, attribute) {
@@ -202,6 +212,7 @@ questionsLvl3.find({}).exec((err, res) => {
     }
     console.log('res3: ' + res[0].question); // ДОСТАЮ ПЕРВУЮ ЗАПИСЬ В КОЛЛЕКЦИИ Lvl3
 });
+
 
 
 
