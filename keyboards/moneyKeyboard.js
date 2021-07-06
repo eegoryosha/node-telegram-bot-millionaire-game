@@ -18,7 +18,7 @@ const money = [
     '1 500 000 руб.',
     '3 000 000 руб.'
 ];
-
+ 
 function createString(pick, current){ // (несгораемая сумма, текущий вопрос)
     let string = '';
     
@@ -32,7 +32,6 @@ function createString(pick, current){ // (несгораемая сумма, т�
         } else{
             string += `${money[i]}\n`;
         }
-        
     }
     return string;
 }

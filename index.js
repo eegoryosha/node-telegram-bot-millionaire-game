@@ -1,6 +1,7 @@
-const config = require('./config.json'); // ИМПОРТ КОНФИГА С ТОКЕНОМ, MONGODB URI и т.д.
+
 const DB = require(`./database`); // ИМПОРТ ФАЙЛА, ГДЕ ПОДКЛЮЧАЕТСЯ БД
-const promptsKeyboard = require('./keyboards/promptsKeyboards');
+require('dotenv').config(); // ИМПОРТ КОНФИГА С ТОКЕНОМ, MONGODB URI и т.д.
+const promptsKeyboard = require('./keyboards/promptsKeyboard');
 const moneyKeyboard = require('./keyboards/moneyKeyboard');
 
 // ПОДКЛЮЧАЮ БД
@@ -67,9 +68,9 @@ const {
 const e = require('express');
 const {
     secondLife
-} = require('./keyboards/promptsKeyboards');
-
-const bot = new Telegraf(config.token);
+} = require('./keyboards/promptsKeyboard');
+ 
+const bot = new Telegraf(process.env.TOKEN);
 
 bot.help((ctx) => ctx.reply('ВСЕ КОМАНДЫ КОТОРЫЕ ЕСТЬ')); // реакция на help
 
@@ -100,7 +101,7 @@ function refresh() {
 // РЕАКЦИЯ НА КОМАНДУ /start
 bot.action('try_again', (ctx) => {
     setTimeout(() => {
-        DB.addOrRefreshUser(ctx.update.callback_query.from.id, ctx.update.callback_query.from.first_name); // контекст от бота !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        DB.addOrRefreshUser(ctx.update.callback_query.from.id, ctx.update.callback_query.from.first_name); 
         start(ctx);
     }, 3000);
 });
@@ -203,54 +204,58 @@ bot.on('text', async ctx => {
 
 // ЭКШНЫ НА ПОДСКАЗКУ 50/50
 bot.action('fiftyFifty_yes', async ctx => {
+    const currentAnswers = await DB.getUserData(ctx.update.callback_query.from.id, 'currentAnswers');  ////////////////////////////////////////////////////////////
+    
     ctx.deleteMessage();
     ctx.deleteMessage(mainMessageId.message_id, mainMessageId.chat.id);
     promptsKeyboard.fiftyFifty.isActive = false;
     mainMessageId = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply());
-    let random = [];
+    let random = []; 
     let randomNumber = Math.floor(Math.random() * 3);
     currentAnswers.forEach((el, i) => {
-        if (el == correctAnswer) {
-            el = correctAnswer;
-        } else {
+        if (el != correctAnswer) {
             random.push(currentAnswers[i]);
-        }
-    });
-    currentAnswers.forEach((el, i) => {
-        if (el == correctAnswer || el == random[randomNumber]) {
-            el = correctAnswer;
-        } else {
-            currentAnswers[i] = ' ';
-        }
-    });
-    const keyboard = Keyboard.make([
-        Key.callback(currentAnswers[0] == ' ' ? ' ' : 'A) ' + currentAnswers[0], currentAnswers[0]),
-        Key.callback(currentAnswers[1] == ' ' ? ' ' : 'B) ' + currentAnswers[1], currentAnswers[1]),
-        Key.callback(currentAnswers[2] == ' ' ? ' ' : 'C) ' + currentAnswers[2], currentAnswers[2]),
-        Key.callback(currentAnswers[3] == ' ' ? ' ' : 'D) ' + currentAnswers[3], currentAnswers[3])
-    ], {
-        columns: 1
-    });
+        } 
+        if (el != correctAnswer && el != random[randomNumber]) {
+            currentAnswers[i] = ' '; 
+            
+        } 
+    });   
     const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
     const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
-    lastMessageId = await ctx.replyWithHTML(moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + '\n________________________________________________\n\nВопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): \n\n' + currentQuestion, keyboard.inline());
+
+    lastMessageId = await ctx.replyWithHTML(
+            moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + 
+            '\n' +
+            '________________________________________________' +
+            '\n\n' +
+            'Вопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>):' +
+            '\n\n' + 
+            currentQuestion, 
+        promptsKeyboard.defaultAnswersKeyboard(currentAnswers).inline() 
+    );
+
     isInGame = true;
-});
+}); 
 
 bot.action('say_no', async ctx => {
    
     ctx.deleteMessage();
-    const keyboard = Keyboard.make([
-        Key.callback(currentAnswers[0] == ' ' ? ' ' : 'A) ' + currentAnswers[0], currentAnswers[0]),
-        Key.callback(currentAnswers[1] == ' ' ? ' ' : 'B) ' + currentAnswers[1], currentAnswers[1]),
-        Key.callback(currentAnswers[2] == ' ' ? ' ' : 'C) ' + currentAnswers[2], currentAnswers[2]),
-        Key.callback(currentAnswers[3] == ' ' ? ' ' : 'D) ' + currentAnswers[3], currentAnswers[3])
-    ], {
-        columns: 1
-    });
+    
     const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
     const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
-    lastMessageId = await ctx.replyWithHTML(moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + '\n________________________________________________\n\nВопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): \n\n' + currentQuestion, keyboard.inline());
+    
+    lastMessageId = await ctx.replyWithHTML(
+            moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + 
+            '\n' +
+            '________________________________________________' +
+            '\n\n' +
+            'Вопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>):' +
+            '\n\n' + 
+            currentQuestion, 
+        promptsKeyboard.defaultAnswersKeyboard(currentAnswers).inline()
+    );
+    
     isInGame = true;
 
 });
@@ -262,27 +267,21 @@ bot.action('secondLife_yes', async ctx => {
     ctx.deleteMessage(mainMessageId.message_id, mainMessageId.chat.id);
     promptsKeyboard.secondLife.isActive = false;
     mainMessageId = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply());
-    const keyboard = Keyboard.make([
-        Key.callback(createLuseButtons('A)', currentAnswers[0]), currentAnswers[0]),
-        Key.callback(createLuseButtons('B)', currentAnswers[1]), currentAnswers[1]),
-        Key.callback(createLuseButtons('C)', currentAnswers[2]), currentAnswers[2]),
-        Key.callback(createLuseButtons('D)', currentAnswers[3]), currentAnswers[3])
-    ], {
-        columns: 1
-    });
 
-    function createLuseButtons(letter, answer) {
-        switch (answer) {
-            case ' ':
-                return ' ';
-            default:
-                return letter + ' ' + answer;
-        }
-
-    }
     const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
     const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
-    lastMessageId = await ctx.replyWithHTML(moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + '\n________________________________________________\n\nВопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): \n\n' + currentQuestion, keyboard.inline());
+    
+    lastMessageId = await ctx.replyWithHTML(
+            moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + 
+            '\n' +
+            '________________________________________________'+
+            '\n\n' +
+            'Вопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): '+
+            '\n\n' + 
+            currentQuestion, 
+        promptsKeyboard.defaultAnswersKeyboard(currentAnswers).inline()
+    );
+    
     isInGame = true;
 });
 
@@ -386,17 +385,16 @@ async function drawQuestionKeyboard(ctx) {
             });
 
             console.log(correctAnswer);
-
-            const keyboard = Keyboard.make([
-                Key.callback('A) ' + currentAnswers[0], currentAnswers[0]),
-                Key.callback('B) ' + currentAnswers[1], currentAnswers[1]),
-                Key.callback('C) ' + currentAnswers[2], currentAnswers[2]),
-                Key.callback('D) ' + currentAnswers[3], currentAnswers[3])
-            ], {
-                columns: 1
-            });
             
-            lastMessageId = await ctx.replyWithHTML(moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + '\n________________________________________________\n\nВопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): \n\n' + currentQuestion, keyboard.inline());
+            lastMessageId = await ctx.replyWithHTML(
+                    moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + 
+                    '\n' +
+                    '________________________________________________' +
+                    '\n\n' +
+                    'Вопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>):' + 
+                    '\n\n' + currentQuestion, 
+                promptsKeyboard.defaultAnswersKeyboard(currentAnswers).inline()
+            );
             isInGame = true;
         }
 
@@ -413,7 +411,7 @@ bot.on('callback_query', async ctx => {
         if (ctx.update.callback_query.data != ' ') {
             ctx.deleteMessage();
         }
-
+ 
         if (correctAnswer == ctx.update.callback_query.data) {
             let questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
             questionCount++; 
@@ -434,46 +432,29 @@ bot.on('callback_query', async ctx => {
         } else if (currentAnswers.includes(ctx.update.callback_query.data) && ctx.update.callback_query.data != ' ' && ctx.update.callback_query.data != correctAnswer) {
             // ЕСЛИ ДЕЙСТВУЕТ ПОДСКАЗКА Право на ошибку
             if (isSecondLife) {
-                const keyboard = Keyboard.make([
-                    Key.callback(createSecondLifeButtons('A)', currentAnswers[0]), currentAnswers[0]),
-                    Key.callback(createSecondLifeButtons('B)', currentAnswers[1]), currentAnswers[1]),
-                    Key.callback(createSecondLifeButtons('C)', currentAnswers[2]), currentAnswers[2]),
-                    Key.callback(createSecondLifeButtons('D)', currentAnswers[3]), currentAnswers[3])
-                ], {
-                    columns: 1
-                });
+                
                 const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
                 const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
-                lastMessageId = await ctx.replyWithHTML(moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + '\n________________________________________________\n\nВопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>): \n\n' + currentQuestion, keyboard.inline());
+                lastMessageId = await ctx.replyWithHTML(
+                        moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + 
+                        '\n' +
+                        '________________________________________________' +
+                        '\n\n' +
+                        'Вопрос №' + questionCount + ' (<code>' + moneyKeyboard.money[questionCount - 1] + '</code>):' +
+                        '\n\n' + currentQuestion, 
+                    promptsKeyboard.secondLifeKeyboard(currentAnswers, pickedAnswer).inline()
+                );
                 isInGame = true;
                 isSecondLife = false;
 
-                function createSecondLifeButtons(letter, answer) {
-                    switch (answer) {
-                        case pickedAnswer:
-                            return letter + ' ' + answer + ' ❌';
-                        case ' ':
-                            return ' ';
-                        default:
-                            return letter + ' ' + answer;
-                    }
-                }
+                                     
             }
             // ЕСЛИ НЕ ДЕЙСТВУЕТ ПОДСКАЗКА Право на ошибку
             else {
-                isInGame = false;
-                const keyboard = Keyboard.make([
-                    Key.callback(createLuseButtons('A)', currentAnswers[0])),
-                    Key.callback(createLuseButtons('B)', currentAnswers[1])),
-                    Key.callback(createLuseButtons('C)', currentAnswers[2])),
-                    Key.callback(createLuseButtons('D)', currentAnswers[3])),
-                    Key.callback(' '),
-                    Key.callback('Попробовать снова', 'try_again')
-                ], {
-                    columns: 1
-                });
+                isInGame = false; 
+                
                 let questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
-                let gain;
+                let gain; 
                 let pickedMoney = moneyKeyboard.pickedMoney.replace(/\s+/g, '');
                 let currentMoney = moneyKeyboard.money[questionCount-1].replace(/\s+/g, '');
                 if(parseInt(currentMoney) > parseInt(pickedMoney)){
@@ -481,22 +462,11 @@ bot.on('callback_query', async ctx => {
                 } else {
                     gain = '0 руб.';
                 }
-                lastMessageId = await ctx.replyWithHTML(`И это неправильный ответ. Вы проиграли!\n\nВаш выигрыш: <code>${gain}</code>`, keyboard.inline());
+                lastMessageId = await ctx.replyWithHTML(`И это неправильный ответ. Вы проиграли!\n\nВаш выигрыш: <code>${gain}</code>`, promptsKeyboard.luseKeyboard(currentAnswers, pickedAnswer, correctAnswer).inline());
 
-                function createLuseButtons(letter, answer) {
-                    switch (answer) {
-                        case correctAnswer:
-                            return letter + ' ' + answer + ' ✅';
-                        case pickedAnswer:
-                            return letter + ' ' + answer + ' ❌';
-                        case ' ':
-                            return ' ';
-                        default:
-                            return letter + ' ' + answer;
-                    }
-                }
+    
             }
-        }
+        } 
     }
 
     // ЗАПОМИНАЮ НЕСГОРАЕМУЮ СУММУ

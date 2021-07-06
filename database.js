@@ -1,5 +1,5 @@
 const mongoose = require(`mongoose`);
-const config = require(`./config.json`);
+require('dotenv').config();
 
 // ДОСТАЕМ СХЕМУ
 const Schema = mongoose.Schema;
@@ -129,7 +129,7 @@ function updateUserData(pushOrReplace, userId, attribute, data, callback) { // c
             [attribute]: data
         }).then(() => {
             if(callback != null){
-                callback();
+                callback();  
             }
         });
     } else if(pushOrReplace == 'push'){
@@ -146,7 +146,19 @@ function updateUserData(pushOrReplace, userId, attribute, data, callback) { // c
         });
     }
 }
+let kek = 'currentAnswers.' + 0;
 
+let kek2 = users.find({_id: 369591320});
+users.findOneAndUpdate({
+    _id: 369591320
+},{
+    $set:{
+        [kek]: '11122222222221',
+    }
+}).then();
+
+
+users.find({_id: 369591320});
 
 
 async function getUserData(userId, attribute) {
@@ -229,10 +241,11 @@ questionsLvl3.find({}).exec((err, res) => {
 
 
 
+ 
 // ФУНКЦИЯ ДЛЯ ПОДКЛЮЧЕНИЯ БАЗЫ MONGODB
 async function initialize() {
     // ПЕРЕДАЕМ ССЫЛКУ И НАСТРОЙКИ
-    await mongoose.connect(config.mongo, {
+    await mongoose.connect(process.env.MONGO, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
             useFindAndModify: false
