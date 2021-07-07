@@ -1,4 +1,5 @@
 const {Keyboard, Key} = require('telegram-keyboard');
+const DB = require('../database');
 
 let fiftyFifty = {
     activeName: '50/50',
@@ -17,17 +18,43 @@ let changeQuestion = {
 };
 
 
-function keyboard(){
-    let keyboard = Keyboard.make([
-        Key.callback(fiftyFifty.isActive ? fiftyFifty.activeName : fiftyFifty.inActiveName),
-        Key.callback(secondLife.isActive ? secondLife.activeName : secondLife.inActiveName),
-        Key.callback(changeQuestion.isActive ? changeQuestion.activeName : changeQuestion.inActiveName), 
+async function keyboard(userId){ 
+    const isfiftyFifty = await DB.getUserData(userId, 'prompts.fiftyFifty');
+    const isSecondLife = await DB.getUserData(userId, 'prompts.secondLife');
+    const isChaneQuestion = await DB.getUserData(userId, 'prompts.changeQuestion');
+
+    const keyboard = Keyboard.make([
+        Key.callback(isfiftyFifty ? fiftyFifty.activeName : fiftyFifty.inActiveName),
+        Key.callback(isSecondLife ? secondLife.activeName : secondLife.inActiveName),
+        Key.callback(isChaneQuestion ? changeQuestion.activeName : changeQuestion.inActiveName), 
         Key.callback('Забрать деньги')
     ], {
         columns: 2
     });
     return keyboard;
 }
+
+
+
+// /////////////////////////////////////////
+// async function foo(attribute){
+//     let isObject = false;
+//     let kek = await DB.users.find({_id: 369591320},{
+//         [attribute]: true+1,
+//         _id: false
+//     });
+
+//     let vlozhennost = 'kek[0]'+'.'+attribute;
+//     let itog = eval(vlozhennost);
+//     console.log(itog);    
+    
+//     console.log(isObject);
+// }
+// foo('prompts.fiftyFifty.asd');
+
+
+
+
 
 function defaultAnswersKeyboard(arr){ 
     const keyboard = Keyboard.make([

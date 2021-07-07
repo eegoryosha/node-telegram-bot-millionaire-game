@@ -21,7 +21,10 @@ const userSchema = Schema({
     lastMessageId: Object,
     mainMessageId: Object,
     isInGame: Boolean,
-    isSecondLife: Boolean
+    isSecondLife: Boolean,
+    prompts: Object
+}, {
+    minimize: false // по умолчанию minimize стоит true, что означает, что пустые объекты на будут заноситься в базу при создании
 });
 
 
@@ -75,7 +78,7 @@ const users = mongoose.model('users', userSchema);
 
 
 // ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯ В БАЗУ ДАННЫХ 
-async function addOrRefreshUser(userId, userName) {
+async function addOrRefreshUser(userId, userName, callback) {
     users.find({
         _id: userId,
     }, (err, res) => {
@@ -93,7 +96,16 @@ async function addOrRefreshUser(userId, userName) {
                 lastMessageId: {},
                 mainMessageId: {},
                 isInGame: false,
-                isSecondLife: false
+                isSecondLife: false,
+                prompts: {
+                    fiftyFifty: true,
+                    secondLife: true,
+                    changeQuestion: true
+                }
+            }).then(()=>{
+                if(callback != null){
+                    callback();
+                }
             });
         } else {
             console.log('ne pusto');
@@ -109,9 +121,16 @@ async function addOrRefreshUser(userId, userName) {
                 lastMessageId: {},
                 mainMessageId: {},
                 isInGame: false,
-                isSecondLife: false
+                isSecondLife: false,
+                prompts: {
+                    fiftyFifty: true,
+                    secondLife: true,
+                    changeQuestion: true
+                }
             }).then(() => { // почему-то без .then не работает
-
+                if(callback != null){
+                    callback();
+                }
             });
         }
     });
@@ -168,15 +187,18 @@ function updateUserData(pushOrReplace, userId, attribute, data, callback) { // c
 
 
 
-async function getUserData(userId, attribute) {
+async function getUserData(userId, attribute) { 
     let data = await users.find({ 
         _id: userId
     }, {
-        [attribute]: true // true означает, что это поле будет выводиться
+        [attribute]: true+1 // true означает, что это поле будет выводиться, +1 на случай, если мы ищем boolean значения
     }); // find(какого юзера ищем, поля для вывода, функция)
-    return data[0][attribute]; 
+    let stringCode = 'data[0].'+attribute;
+    let result = eval(stringCode);
+    return result;
 }
 
+ 
 
 
 // ДОСТАЕМ ВСЕ ЗАПИСИ ИЗ КОЛЛЕКЦИИ
