@@ -22,7 +22,8 @@ const userSchema = Schema({
     mainMessageId: Object,
     isInGame: Boolean,
     isSecondLife: Boolean,
-    prompts: Object
+    prompts: Object,
+    pickedMoney: String
 }, {
     minimize: false // по умолчанию minimize стоит true, что означает, что пустые объекты на будут заноситься в базу при создании
 });
@@ -101,7 +102,8 @@ async function addOrRefreshUser(userId, userName, callback) {
                     fiftyFifty: true,
                     secondLife: true,
                     changeQuestion: true
-                }
+                },
+                pickedMoney: ''
             }).then(()=>{
                 if(callback != null){
                     callback();
@@ -126,14 +128,15 @@ async function addOrRefreshUser(userId, userName, callback) {
                     fiftyFifty: true,
                     secondLife: true,
                     changeQuestion: true
-                }
+                },
+                pickedMoney: ''
             }).then(() => { // почему-то без .then не работает
                 if(callback != null){
-                    callback();
+                   callback();
                 }
             });
         }
-    });
+    }); 
 }
 
 

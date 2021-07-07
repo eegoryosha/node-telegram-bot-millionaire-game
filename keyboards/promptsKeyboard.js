@@ -68,49 +68,49 @@ function defaultAnswersKeyboard(arr){
     return keyboard;
 }
 
-function secondLifeKeyboard(arr, pickedAnswer){
+async function secondLifeKeyboard(arr, pickedAnswer){
     const keyboard = Keyboard.make([
-        Key.callback(createSecondLifeButtons('A)', arr[0]), arr[0]),
-        Key.callback(createSecondLifeButtons('B)', arr[1]), arr[1]),
-        Key.callback(createSecondLifeButtons('C)', arr[2]), arr[2]),
-        Key.callback(createSecondLifeButtons('D)', arr[3]), arr[3])
+        Key.callback(await createSecondLifeButtons('A)', await arr[0]), await arr[0]),
+        Key.callback(await createSecondLifeButtons('B)', await arr[1]), await arr[1]),
+        Key.callback(await createSecondLifeButtons('C)', await arr[2]), await arr[2]),
+        Key.callback(await createSecondLifeButtons('D)', await arr[3]), await arr[3])
     ], {
         columns: 1
     });
-    function createSecondLifeButtons(letter, answer) {
+    async function createSecondLifeButtons(letter, answer) {
         switch (answer) {
-            case pickedAnswer:
-                return letter + ' ' + answer + ' ❌';  
+            case await pickedAnswer:
+                return letter + ' ' + await answer + ' ❌';  
             case ' ':
                 return ' ';
             default:
-                return letter + ' ' + answer;
+                return letter + ' ' + await answer;
         }
     }
     return keyboard;
 }
 
-function luseKeyboard(arr, pickedAnswer, correctAnswer){
-    const keyboard = Keyboard.make([
-        Key.callback(createLuseButtons('A)', arr[0])),
-        Key.callback(createLuseButtons('B)', arr[1])),
-        Key.callback(createLuseButtons('C)', arr[2])),
-        Key.callback(createLuseButtons('D)', arr[3])),
+async function luseKeyboard(arr, pickedAnswer, correctAnswer){
+    const keyboard = Keyboard.make([ 
+        Key.callback(await createLuseButtons('A)', await arr[0])),
+        Key.callback(await createLuseButtons('B)', await arr[1])),
+        Key.callback(await createLuseButtons('C)', await arr[2])), 
+        Key.callback(await createLuseButtons('D)', await arr[3])),
         Key.callback(' '),
         Key.callback('Попробовать снова', 'try_again')
     ], { 
         columns: 1
     });
-    function createLuseButtons(letter, answer) {
+    async function createLuseButtons(letter, answer) {
         switch (answer) {
-            case correctAnswer:
-                return letter + ' ' + answer + ' ✅';
-            case pickedAnswer:
-                return letter + ' ' + answer + ' ❌';
+            case await correctAnswer:
+                return letter + ' ' + await answer + ' ✅';
+            case await pickedAnswer:
+                return letter + ' ' + await answer + ' ❌';
             case ' ':
                 return ' ';
             default:
-                return letter + ' ' + answer;
+                return letter + ' ' + await answer;
         }
     }
     return keyboard;
