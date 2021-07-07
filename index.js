@@ -41,18 +41,23 @@ bot.action('try_again', (ctx) => {
 });
 
 async function start(ctx) {
-    if (mainMessageId != null && mainMessageId != undefined && mainMessageId != '' && mainMessageId != 'string') {
+    let lastMessageId = await DB.getUserData(ctx.message.from.id, 'lastMessageId');
+    let mainMessageId = await DB.getUserData(ctx.message.from.id, 'mainMessageId');
+
+    if (Object.keys(mainMessageId).length != 0) {
         ctx.deleteMessage(mainMessageId.message_id, mainMessageId.chat.id);
     }
-    if (lastMessageId != null && lastMessageId != undefined && lastMessageId != '' && lastMessageId != 'string') {
+    if (Object.keys(lastMessageId).length != 0) {
         ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
     }
     refresh();
     const keyboardInline = Keyboard.make([
         Key.callback('Сыграть!', 'pick_sum')
     ]);
+    
+    const lastMsg = await ctx.reply('Хотите сыграть в игру "Кто Хочет Стать Миллионером"?', keyboardInline.inline()); // под это сообщение помещаем инлайн-кнопку 
+    DB.updateUserData('replace', ctx.message.from.id, 'lastMessageId', lastMsg);
 
-    lastMessageId = await ctx.reply('Хотите сыграть в игру "Кто Хочет Стать Миллионером"?', keyboardInline.inline()); // под это сообщение помещаем инлайн-кнопку 
 }
 
 
@@ -65,7 +70,7 @@ function refresh() {
     currentQuestion = '';
     currentAnswers = [];  
     correctAnswer = '';
-    questionLvl = '';
+
     lastMessageId = '';
     mainMessageId = '';
     isInGame = false;
@@ -79,18 +84,21 @@ function refresh() {
 // ------------------------------ ВЫБОР НЕСГОРАЕМОЙ СУММЫ ---------------------------------
 bot.action('pick_sum', async (ctx) => {
     ctx.deleteMessage();
-    mainMessageId = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply()); // ПОДКЛЮЧАЕМ КЛАВИАТУРУ ИЗ promptsKeyboards.js
+    const mainMsg = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply()); // ПОДКЛЮЧАЕМ КЛАВИАТУРУ ИЗ promptsKeyboards.js
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'mainMessageId', mainMsg);
     setTimeout(async () => {
-        lastMessageId = await ctx.reply('Выберите несгораемую сумму:', moneyKeyboard.keyboard.inline());
+        const lastMsg = await ctx.reply('Выберите несгораемую сумму:', moneyKeyboard.keyboard.inline());
+        DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
     }, 300);
-});
+}); 
 
 
 
 // если выбрал неправильную сумму
 bot.action('pick_sum_again', async ctx => {
     ctx.deleteMessage();
-    lastMessageId = await ctx.reply('Выберите несгораемую сумму:', moneyKeyboard.keyboard.inline());
+    const lastMsg = await ctx.reply('Выберите несгораемую сумму:', moneyKeyboard.keyboard.inline());
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
 });
 
 
@@ -98,25 +106,23 @@ bot.action('pick_sum_again', async ctx => {
 // определение уровня сложности вопроса с помощью номера вопроса
 async function pickRandomQuestion(ctx) {
     const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
-    isSecondLife = false;
+
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isSecondLife', false);
+
     if (questionCount <= 2) {
-        questionLvl = DB.questionsLvl0;
-        createQuestion(DB.questionsLvl0, ctx);
+        createQuestion(ctx, DB.questionsLvl0);
     } else if (questionCount > 2 && questionCount <= 5) {
-        questionLvl = DB.questionsLvl1;
-        createQuestion(DB.questionsLvl1, ctx);
+        createQuestion(ctx, DB.questionsLvl1);
     } else if (questionCount > 5 && questionCount <= 10) {
-        questionLvl = DB.questionsLvl2;
-        createQuestion(DB.questionsLvl2, ctx);
+        createQuestion(ctx, DB.questionsLvl2);
     } else if (questionCount > 10) {
-        questionLvl = DB.questionsLvl3;
-        createQuestion(DB.questionsLvl3, ctx);
+        createQuestion(ctx, DB.questionsLvl3);
     }
 }
 
 // выбор случайного вопроса из БД и проверка повторяющихся вопросов
-function createQuestion(lvl, ctx) {
-    lvl.find({}).exec(async (err, res) => {
+function createQuestion(ctx, questionLvl) {
+    questionLvl.find({}).exec(async (err, res) => {
         if (err) {
             console.log(err);
         } else {
@@ -128,10 +134,10 @@ function createQuestion(lvl, ctx) {
                 console.log(passedQuestions);
                 if (!passedQuestions.includes(currentQuestion)) {
                     DB.updateUserData('push', ctx.update.callback_query.from.id, 'passedQuestions', currentQuestion);
-                    drawQuestionKeyboard(ctx);
+                    drawQuestionKeyboard(ctx, questionLvl);
                 } else {
                     console.log('повторился вопрос: ' + currentQuestion);
-                    pickRandomQuestion(ctx); 
+                    pickRandomQuestion(ctx, questionLvl); 
                 }
             });
         }
@@ -139,7 +145,7 @@ function createQuestion(lvl, ctx) {
 }
 
 // вывод вопроса пользователю
-async function drawQuestionKeyboard(ctx) { 
+async function drawQuestionKeyboard(ctx, questionLvl) { 
     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'currentAnswers', []);
     const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
     const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
@@ -167,7 +173,7 @@ async function drawQuestionKeyboard(ctx) {
 
                 console.log(res[0].answers[0]);
 
-                lastMessageId = await ctx.replyWithHTML(
+                const lastMsg = await ctx.replyWithHTML(
                         moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + 
                         '\n' +
                         '________________________________________________' +
@@ -176,7 +182,9 @@ async function drawQuestionKeyboard(ctx) {
                         '\n\n' + currentQuestion, 
                     promptsKeyboard.defaultAnswersKeyboard(currentAnswers).inline()
                 );
-                isInGame = true;
+                DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
+
+                DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', true);
             });
             
             
@@ -187,58 +195,62 @@ async function drawQuestionKeyboard(ctx) {
 }
 
 
-
-
-
-
-
-
 // ------------------------------ НАЖАТИЕ НА ПОДСКАЗКУ ---------------------------------
 bot.on('text', async ctx => {
+    let lastMessageId = await DB.getUserData(ctx.message.from.id, 'lastMessageId');
+    const isInGame = await DB.getUserData(ctx.message.from.id, 'isInGame');
+
     // если нажал на «‎50/50» 
     if (ctx.update.message.text == '50/50' && promptsKeyboard.fiftyFifty.isActive == true && isInGame == true) {
         ctx.deleteMessage();
         ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
-        isInGame = false;
+        
+        DB.updateUserData('replace', ctx.message.from.id, 'isInGame', false);
+
         const keyboard = Keyboard.make([
             Key.callback('Да', 'fiftyFifty_yes'),
             Key.callback('Нет', 'say_no')
         ], {
             columns: 1
         });
-        ctx.replyWithHTML('Вы уверены, что хотите взять подсказку <b>50/50</b>?', keyboard.inline());
+            const lastMsg = await ctx.replyWithHTML('Вы уверены, что хотите взять подсказку <b>50/50</b>?', keyboard.inline());
+            DB.updateUserData('replace', ctx.message.from.id, 'lastMessageId', lastMsg);
     }
     // если нажал на «‎Право на ошибку» 
     else if (ctx.update.message.text == 'Право на ошибку' && promptsKeyboard.secondLife.isActive == true && isInGame == true) {
         ctx.deleteMessage();
         ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
-        isInGame = false;
+
+        DB.updateUserData('replace', ctx.message.from.id, 'isInGame', false);
+
         const keyboard = Keyboard.make([
             Key.callback('Да', 'secondLife_yes'),
             Key.callback('Нет', 'say_no')
         ], {
             columns: 1
         });
-        ctx.replyWithHTML('Вы уверены, что хотите взять подсказку <b>Право на ошибку</b>?', keyboard.inline());
+        const lastMsg = await ctx.replyWithHTML('Вы уверены, что хотите взять подсказку <b>Право на ошибку</b>?', keyboard.inline());
+        DB.updateUserData('replace', ctx.message.from.id, 'lastMessageId', lastMsg);
     }
     // если нажал на «‎Поменять вопрос»
     else if (ctx.update.message.text == 'Поменять вопрос' && promptsKeyboard.changeQuestion.isActive == true && isInGame == true) {
         ctx.deleteMessage();
         ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
-        isInGame = false;
+        DB.updateUserData('replace', ctx.message.from.id, 'isInGame', false);
         const keyboard = Keyboard.make([
             Key.callback('Да', 'change_question_yes'),
             Key.callback('Нет', 'say_no')
         ], {
             columns: 1
         });
-        ctx.replyWithHTML('Вы уверены, что хотите <b>Поменять вопрос</b>?', keyboard.inline());
+        const lastMsg = await ctx.replyWithHTML('Вы уверены, что хотите <b>Поменять вопрос</b>?', keyboard.inline());
+        DB.updateUserData('replace', ctx.message.from.id, 'lastMessageId', lastMsg);
     }
     // если нажал на «‎Забрать деньги»
     else if (ctx.update.message.text == 'Забрать деньги' && isInGame == true) {
         ctx.deleteMessage();
         ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
-        isInGame = false;
+        DB.updateUserData('replace', ctx.message.from.id, 'isInGame', false);
         const keyboard = Keyboard.make([
             Key.callback('Да', await DB.getUserData(ctx.message.from.id, 'questionCount') == 1 ? 'take_money_yes_alert' : 'take_money_yes'),
             Key.callback('Нет', 'say_no')
@@ -246,8 +258,8 @@ bot.on('text', async ctx => {
             columns: 1
         });
 
-        ctx.replyWithHTML('Вы уверены, что хотите <b>Забрать деньги</b>?', keyboard.inline());
-
+        const lastMsg = await ctx.replyWithHTML('Вы уверены, что хотите <b>Забрать деньги</b>?', keyboard.inline());
+        DB.updateUserData('replace', ctx.message.from.id, 'lastMessageId', lastMsg);
     } else {
         ctx.deleteMessage(); // УДАЛЯЕТ ВСЕ ЛИШНИЕ СООБЩЕНИЯ ОТ ПОЛЬЗОВАТЕЛЯ
     }
@@ -260,12 +272,15 @@ bot.action('fiftyFifty_yes', async ctx => {
     const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
     let currentAnswers = await DB.getUserData(ctx.update.callback_query.from.id, 'currentAnswers');
     const correctAnswer = await DB.getUserData(ctx.update.callback_query.from.id, 'correctAnswer');
+    const mainMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'mainMessageId');
+    const lastMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'lastMessageId');
 
-    ctx.deleteMessage();
+    ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
     ctx.deleteMessage(mainMessageId.message_id, mainMessageId.chat.id);
 
     promptsKeyboard.fiftyFifty.isActive = false;
-    mainMessageId = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply());
+    const mainMsg = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply());
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'mainMessageId', mainMsg);
     let random = []; 
     let randomNumber = Math.floor(Math.random() * 3); 
     
@@ -293,8 +308,8 @@ bot.action('fiftyFifty_yes', async ctx => {
         });   
     });
     currentAnswers = await DB.getUserData(ctx.update.callback_query.from.id, 'currentAnswers');
-    console.log(currentAnswers); 
-    lastMessageId = await ctx.replyWithHTML(
+    
+    const lastMsg = await ctx.replyWithHTML(
         moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + 
         '\n' +
         '________________________________________________' +
@@ -303,24 +318,30 @@ bot.action('fiftyFifty_yes', async ctx => {
         '\n\n' + 
         currentQuestion, 
     promptsKeyboard.defaultAnswersKeyboard(currentAnswers).inline());
-    isInGame = true;
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', true);
     
    
 }); 
 
 // экшн на «‎Право на ошибку»   
 bot.action('secondLife_yes', async ctx => {
-    isSecondLife = true;
-    ctx.deleteMessage();
-    ctx.deleteMessage(mainMessageId.message_id, mainMessageId.chat.id);
-    promptsKeyboard.secondLife.isActive = false;
-    mainMessageId = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply());
+    const mainMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'mainMessageId');
+    const lastMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'lastMessageId');
 
+    ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
+    ctx.deleteMessage(mainMessageId.message_id, mainMessageId.chat.id);
+
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isSecondLife', true);
+
+    promptsKeyboard.secondLife.isActive = false;
+    const mainMsg = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply());
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'mainMessageId', mainMsg);
     const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
     const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
     const currentAnswers = await DB.getUserData(ctx.update.callback_query.from.id, 'currentAnswers');
     
-    lastMessageId = await ctx.replyWithHTML(
+    const lastMsg = await ctx.replyWithHTML(
             moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + 
             '\n' +
             '________________________________________________'+
@@ -330,16 +351,20 @@ bot.action('secondLife_yes', async ctx => {
             currentQuestion, 
         promptsKeyboard.defaultAnswersKeyboard(currentAnswers).inline()
     );
-    
-    isInGame = true;
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', true);
 });
 
 // экшн на «‎Поменять вопрос» 
 bot.action('change_question_yes', async ctx => {
-    ctx.deleteMessage();
+    const mainMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'mainMessageId');
+    const lastMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'lastMessageId');
+
+    ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
     ctx.deleteMessage(mainMessageId.message_id, mainMessageId.chat.id);
     promptsKeyboard.changeQuestion.isActive = false;
-    mainMessageId = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply());
+    const mainMsg = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply());
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'mainMessageId', mainMsg);
     let message = await ctx.replyWithHTML('Вопрос меняется. \n\nПодождите немного...');
     setTimeout(() => {
         ctx.deleteMessage(message.message_id, message.chat.id);
@@ -349,15 +374,20 @@ bot.action('change_question_yes', async ctx => {
 
 // экшн на «‎Забрать деньги» 
 bot.action('take_money_yes', async ctx => {
-    ctx.deleteMessage();
+    const mainMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'mainMessageId');
+    const lastMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'lastMessageId');
+
+    ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
     ctx.deleteMessage(mainMessageId.message_id, mainMessageId.chat.id);
 
-    mainMessageId = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply());
+    const mainMsg = await ctx.reply('Вы играете в игру "Кто Хочет Стать Миллионером"!', promptsKeyboard.keyboard().reply());
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'mainMessageId', mainMsg);
     const keyboard = Keyboard.make([
         Key.callback('Сыграть еще раз', 'try_again')
     ]);
     const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
-    lastMessageId = await ctx.replyWithHTML(`Вы забрали <code>${moneyKeyboard.money[questionCount-2]}</code>`, keyboard.inline());
+    const lastMsg = await ctx.replyWithHTML(`Вы забрали <code>${moneyKeyboard.money[questionCount-2]}</code>`, keyboard.inline());
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
 });
 bot.action('take_money_yes_alert', async ctx => {
     ctx.answerCbQuery('Нечего забирать!');
@@ -365,13 +395,14 @@ bot.action('take_money_yes_alert', async ctx => {
 
 // экшн, если передумал брать подсказку
 bot.action('say_no', async ctx => {
-    ctx.deleteMessage();
+    const lastMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'lastMessageId');
+    ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
     
     const currentAnswers = await DB.getUserData(ctx.update.callback_query.from.id, 'currentAnswers');
     const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
     const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
     
-    lastMessageId = await ctx.replyWithHTML(
+    const lastMsg = await ctx.replyWithHTML(
             moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + 
             '\n' +
             '________________________________________________' +
@@ -381,11 +412,11 @@ bot.action('say_no', async ctx => {
             currentQuestion, 
         promptsKeyboard.defaultAnswersKeyboard(currentAnswers).inline()
     );
-    
-    isInGame = true;
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', true);
 });
 
-
+ 
 
 
 ///////////////////////////////////////////////////////////del
@@ -395,10 +426,8 @@ let currentQuestion = ''; // текст текущего вопроса
 let currentAnswers = []; // текущие варианты ответа
 let correctAnswer = ''; // текст правильного ответа
 let pickedAnswer = ''; // текст выбранного ответа 
-
-let questionLvl; // текущий уровень вопросов
 let lastMessageId = ''; // последнее сообщение
-let mainMessageId = ''; // главное сообщение
+let mainMessageId = ''; // главное сообщение 
 let isInGame = false; // флажок состояния игры для подсказок 
 let isSecondLife = false; // работает ли подсказка право на ошибку
 
@@ -414,7 +443,8 @@ bot.on('callback_query', async ctx => {
     const currentAnswers = await DB.getUserData(ctx.update.callback_query.from.id, 'currentAnswers');
     const correctAnswer = await DB.getUserData(ctx.update.callback_query.from.id, 'correctAnswer');
     const pickedAnswer = await DB.getUserData(ctx.update.callback_query.from.id, 'pickedAnswer');
- 
+    const isSecondLife = await DB.getUserData(ctx.update.callback_query.from.id, 'isSecondLife');
+
     // ПРОВЕРКА ПРАВИЛЬНОСТИ ОТВЕТА
     if (currentAnswers.includes(ctx.update.callback_query.data)) {
         await new Promise((response)=>{
@@ -433,11 +463,12 @@ bot.on('callback_query', async ctx => {
             questionCount++; 
             DB.updateUserData('replace', ctx.update.callback_query.from.id, 'questionCount', questionCount, async ()=>{
                 if (questionCount == 16) {
-                    lastMessageId = await ctx.replyWithHTML('Вы победили! Ваш выигрыш: <code>3 000 000 рублей!</code>');
-                    isInGame = false;
+                    const lastMsg = await ctx.replyWithHTML('Вы победили! Ваш выигрыш: <code>3 000 000 рублей!</code>');
+                    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
+                    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', false);
                 } else {
                     let message = await ctx.replyWithHTML('И это правильный ответ! \nВаш выигрыш составляет <code>' + (moneyKeyboard.money[questionCount - 2]) + '</code>\n\nПереходим к следующему вопросу...');
-                    isInGame = false;
+                    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', false);
                     setTimeout(() => {  
                         ctx.deleteMessage(message.message_id, message.chat.id);
                         pickRandomQuestion(ctx);
@@ -453,7 +484,7 @@ bot.on('callback_query', async ctx => {
                 
                 const questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
                 const currentQuestion = await DB.getUserData(ctx.update.callback_query.from.id, 'currentQuestion');
-                lastMessageId = await ctx.replyWithHTML(
+                const lastMsg = await ctx.replyWithHTML(
                         moneyKeyboard.createString(moneyKeyboard.pickedMoney, questionCount - 1) + 
                         '\n' +
                         '________________________________________________' +
@@ -462,13 +493,14 @@ bot.on('callback_query', async ctx => {
                         '\n\n' + currentQuestion, 
                     promptsKeyboard.secondLifeKeyboard(currentAnswers, pickedAnswer).inline()
                 );
-                isInGame = true;
-                isSecondLife = false;                  
+                DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
+                DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', true);
+                DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isSecondLife', false);                 
             }
 
             // ЕСЛИ НЕ ДЕЙСТВУЕТ ПОДСКАЗКА Право на ошибку
             else {
-                isInGame = false; 
+                DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', false);
                 
                 let questionCount = await DB.getUserData(ctx.update.callback_query.from.id, 'questionCount');
                 let gain; 
@@ -479,8 +511,8 @@ bot.on('callback_query', async ctx => {
                 } else {
                     gain = '0 руб.';
                 }
-                lastMessageId = await ctx.replyWithHTML(`И это неправильный ответ. Вы проиграли!\n\nВаш выигрыш: <code>${gain}</code>`, promptsKeyboard.luseKeyboard(currentAnswers, pickedAnswer, correctAnswer).inline());
-
+                const lastMsg = await ctx.replyWithHTML(`И это неправильный ответ. Вы проиграли!\n\nВаш выигрыш: <code>${gain}</code>`, promptsKeyboard.luseKeyboard(currentAnswers, pickedAnswer, correctAnswer).inline());
+                DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
     
             }
         } 

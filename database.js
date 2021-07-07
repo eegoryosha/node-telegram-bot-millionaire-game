@@ -18,9 +18,8 @@ const userSchema = Schema({
     currentAnswers: Array,
     correctAnswer: String,
     pickedAnswer: String,
-    questionLvlText: String,
-    lastMessageId: String,
-    mainMessageId: String,
+    lastMessageId: Object,
+    mainMessageId: Object,
     isInGame: Boolean,
     isSecondLife: Boolean
 });
@@ -91,9 +90,8 @@ async function addOrRefreshUser(userId, userName) {
                 currentAnswers: [],
                 correctAnswer: '',
                 pickedAnswer: '',
-                questionLvlText: '',
-                lastMessageId: '',
-                mainMessageId: '',
+                lastMessageId: {},
+                mainMessageId: {},
                 isInGame: false,
                 isSecondLife: false
             });
@@ -108,9 +106,8 @@ async function addOrRefreshUser(userId, userName) {
                 currentAnswers: [],
                 correctAnswer: '',
                 pickedAnswer: '',
-                questionLvlText: '',
-                lastMessageId: '',
-                mainMessageId: '',
+                lastMessageId: {},
+                mainMessageId: {},
                 isInGame: false,
                 isSecondLife: false
             }).then(() => { // почему-то без .then не работает
