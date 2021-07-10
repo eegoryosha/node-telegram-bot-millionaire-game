@@ -39,7 +39,7 @@ function createString(pick, current){ // (несгораемая сумма, т�
 let createMoneyKeyboard = [];
 for(let i = money.length-1; i>=0; i--){
     if(i == money.length-1){
-        createMoneyKeyboard.push(Key.callback(i+1 + '. ' + money[i], money[i]));
+        createMoneyKeyboard.push(Key.callback(i+1 + '. ' + money[i], 'pick_sum_again'));
     }
     else{
         createMoneyKeyboard.push(Key.callback(i+1 + '. ' + money[i], money[i]));

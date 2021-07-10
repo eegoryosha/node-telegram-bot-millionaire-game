@@ -1,3 +1,4 @@
 mongo.txt
 /node_modules
 .env
+.jshintrc

@@ -23,7 +23,8 @@ const userSchema = Schema({
     isInGame: Boolean,
     isSecondLife: Boolean,
     prompts: Object,
-    pickedMoney: String
+    pickedMoney: String,
+    isButtonBlock: Boolean
 }, {
     minimize: false // по умолчанию minimize стоит true, что означает, что пустые объекты на будут заноситься в базу при создании
 });
@@ -84,7 +85,6 @@ async function addOrRefreshUser(userId, userName, callback) {
         _id: userId,
     }, (err, res) => {
         if (res[0] == undefined) {
-            console.log('pusto')
             users.create({
                 _id: userId,
                 userName: userName, 
@@ -103,14 +103,14 @@ async function addOrRefreshUser(userId, userName, callback) {
                     secondLife: true,
                     changeQuestion: true
                 },
-                pickedMoney: ''
+                pickedMoney: '',
+                isButtonBlock: false
             }).then(()=>{
                 if(callback != null){
                     callback();
                 }
             });
         } else {
-            console.log('ne pusto');
             users.findOneAndUpdate({
                 _id: res[0]._id
             }, {
@@ -120,8 +120,6 @@ async function addOrRefreshUser(userId, userName, callback) {
                 currentAnswers: [],
                 correctAnswer: '',
                 pickedAnswer: '',
-                lastMessageId: {},
-                mainMessageId: {},
                 isInGame: false,
                 isSecondLife: false,
                 prompts: {
@@ -129,7 +127,8 @@ async function addOrRefreshUser(userId, userName, callback) {
                     secondLife: true,
                     changeQuestion: true
                 },
-                pickedMoney: ''
+                pickedMoney: '',
+                isButtonBlock: false
             }).then(() => { // почему-то без .then не работает
                 if(callback != null){
                    callback();
@@ -140,7 +139,7 @@ async function addOrRefreshUser(userId, userName, callback) {
 }
 
 
-function updateUserData(pushOrReplace, userId, attribute, data, callback) { // callback - то, что будет выполняться после апдейта
+async function updateUserData(pushOrReplace, userId, attribute, data, callback) { // callback - то, что будет выполняться после апдейта
     if(pushOrReplace == 'replace'){
         if(attribute.substr(-3, 1) == '[' && isNaN(attribute.substr(-2, 1)) == false && attribute.substr(-1) == ']'){
             let str = attribute.slice(0, -3);
@@ -151,7 +150,7 @@ function updateUserData(pushOrReplace, userId, attribute, data, callback) { // c
                 _id: userId
             },{
                 $set:{
-                    [attr]: data,
+                    [attr]: await data,
                 }
             }).then(()=>{
                 if(callback != null){
@@ -162,7 +161,7 @@ function updateUserData(pushOrReplace, userId, attribute, data, callback) { // c
             users.findOneAndUpdate({
                 _id: userId
             }, {
-                [attribute]: data
+                [attribute]: await data
             }).then(() => {
                 if(callback != null){
                     callback();  
@@ -174,7 +173,7 @@ function updateUserData(pushOrReplace, userId, attribute, data, callback) { // c
             _id: userId
         }, {
             $push: {
-                [attribute]: data
+                [attribute]: await data
             } 
         }).then(()=>{
             if(callback != null){
@@ -184,7 +183,32 @@ function updateUserData(pushOrReplace, userId, attribute, data, callback) { // c
     }
 }
 
-
+async function clearMainMessageId(userId, callback){
+    users.findOneAndUpdate({
+        _id: userId
+    },{
+        $set:{
+            'mainMessageId': {},
+        }
+    }).then(()=>{
+        if(callback != null){
+            callback();
+        }
+    });
+}
+async function clearLastMessageId(userId, callback){
+    users.findOneAndUpdate({
+        _id: userId
+    },{
+        $set:{
+            'lastMessageId': {},
+        }
+    }).then(()=>{
+        if(callback != null){
+            callback();
+        }
+    });
+}
 
 
 
@@ -302,5 +326,7 @@ module.exports = {
     users: users,
     addOrRefreshUser: addOrRefreshUser,
     updateUserData: updateUserData,
-    getUserData: getUserData
+    getUserData: getUserData,
+    clearMainMessageId: clearMainMessageId,
+    clearLastMessageId: clearLastMessageId
 };
