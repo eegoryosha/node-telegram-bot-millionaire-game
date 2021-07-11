@@ -24,7 +24,9 @@ const userSchema = Schema({
     isSecondLife: Boolean,
     prompts: Object,
     pickedMoney: String,
-    isButtonBlock: Boolean
+    isButtonBlock: Boolean,
+    activeScene: String,
+    winSum: Number
 }, {
     minimize: false // по умолчанию minimize стоит true, что означает, что пустые объекты на будут заноситься в базу при создании
 });
@@ -104,7 +106,9 @@ async function addOrRefreshUser(userId, userName, callback) {
                     changeQuestion: true
                 },
                 pickedMoney: '',
-                isButtonBlock: false
+                isButtonBlock: false,
+                activeScene: 'hello_scene',
+                winSum: 0
             }).then(()=>{
                 if(callback != null){
                     callback();
@@ -128,7 +132,8 @@ async function addOrRefreshUser(userId, userName, callback) {
                     changeQuestion: true
                 },
                 pickedMoney: '',
-                isButtonBlock: false
+                isButtonBlock: false,
+                activeScene: 'hello_scene'
             }).then(() => { // почему-то без .then не работает
                 if(callback != null){
                    callback();
