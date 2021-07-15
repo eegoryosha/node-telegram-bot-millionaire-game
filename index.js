@@ -50,9 +50,16 @@ bot.start(async (ctx) => {
                 enterNickname(ctx);
             });
         } else{
-            DB.addOrRefreshUser(ctx.message.from.id, ctx.message.from.username, async ()=>{
-                start(ctx, ctx.message.from.id);
-            });
+            const userNickname = await DB.getUserData(ctx.message.from.id, 'userNickname');
+            if(userNickname == undefined){
+                enterNickname(ctx);
+            }
+            else{
+                DB.addOrRefreshUser(ctx.message.from.id, ctx.message.from.username, async ()=>{
+                    start(ctx, ctx.message.from.id);
+                });
+            }
+           
         }
     }, 3000);
 }); 
