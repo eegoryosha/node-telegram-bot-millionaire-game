@@ -51,10 +51,10 @@ bot.start(async (ctx) => {
             });
         } else{
             const userNickname = await DB.getUserData(ctx.message.from.id, 'userNickname');
-            if(userNickname == undefined){
+            if(userNickname == ''){
                 enterNickname(ctx);
             }
-            else{
+            else{ 
                 DB.addOrRefreshUser(ctx.message.from.id, ctx.message.from.username, async ()=>{
                     start(ctx, ctx.message.from.id);
                 });
@@ -66,8 +66,13 @@ bot.start(async (ctx) => {
 
 
 async function enterNickname(ctx){
-    const lastMessageId = await ctx.reply('Добро пожаловать! Введите ваш никнейм.');
+    let lastMessageId = await DB.getUserData(ctx.message.from.id, 'lastMessageId'); 
+    if (Object.keys(lastMessageId).length != 0) {
+        ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
+    }
+    lastMessageId = await ctx.reply('Добро пожаловать! Введите ваш никнейм.');
     DB.updateUserData('replace', ctx.update.message.from.id, 'lastMessageId', lastMessageId);
+    DB.updateUserData('replace', ctx.update.message.from.id, 'activeScene', 'enter_your_name');
 }
 
 bot.on('text', async (ctx, next)=>{
@@ -152,6 +157,8 @@ async function start(ctx, userId) {
     const lastMsg = await ctx.reply('Хотите сыграть в игру "Кто Хочет Стать Миллионером"?', keyboardInline.inline()); 
 
     DB.updateUserData('replace', userId, 'lastMessageId', lastMsg);
+
+    DB.updateUserData('replace', userId, 'activeScene', 'main_menu');
 }
 
 
