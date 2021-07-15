@@ -1,5 +1,6 @@
 const { Keyboard, Key } = require('telegram-keyboard');
 
+
 let pickedMoney = '';
 const money = [
     '500 руб.',

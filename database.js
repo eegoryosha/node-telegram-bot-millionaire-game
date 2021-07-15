@@ -12,6 +12,7 @@ const queSchema = Schema({
 const userSchema = Schema({
     _id: Number,
     userName: String,
+    userNickname: String,
     questionCount: Number,
     passedQuestions: Array,
     currentQuestion: String,
@@ -24,9 +25,10 @@ const userSchema = Schema({
     isSecondLife: Boolean,
     prompts: Object,
     pickedMoney: String,
-    isButtonBlock: Boolean,
+    isButtonBlock: Boolean, 
     activeScene: String,
-    winSum: Number
+    winSum: Number,
+    gameCount: Number
 }, {
     minimize: false // по умолчанию minimize стоит true, что означает, что пустые объекты на будут заноситься в базу при создании
 });
@@ -90,6 +92,7 @@ async function addOrRefreshUser(userId, userName, callback) {
             users.create({
                 _id: userId,
                 userName: userName, 
+                userNickname: '',
                 questionCount: 1,
                 passedQuestions: [],
                 currentQuestion: '',
@@ -107,8 +110,9 @@ async function addOrRefreshUser(userId, userName, callback) {
                 },
                 pickedMoney: '',
                 isButtonBlock: false,
-                activeScene: 'hello_scene',
-                winSum: 0
+                activeScene: 'enter_your_name',
+                winSum: 0,
+                gameCount: 0
             }).then(()=>{
                 if(callback != null){
                     callback();
@@ -142,6 +146,26 @@ async function addOrRefreshUser(userId, userName, callback) {
         }
     }); 
 }
+
+async function checkUserExists(userId){
+    let arr = await users.find({_id: userId});
+    if(arr[0] == undefined){
+        return false;
+    }else{
+        return true;
+    }
+}
+
+async function checkUserNickname(nickname){
+    let regex = new RegExp(["^", nickname, "$"].join(""), "i"); // игнор регистра
+    let arr = await users.find({userNickname: regex});
+    if(arr[0] == undefined){
+        return false;
+    } else{
+        return true;
+    }
+}
+
 
 
 async function updateUserData(pushOrReplace, userId, attribute, data, callback) { // callback - то, что будет выполняться после апдейта
@@ -333,5 +357,7 @@ module.exports = {
     updateUserData: updateUserData,
     getUserData: getUserData,
     clearMainMessageId: clearMainMessageId,
-    clearLastMessageId: clearLastMessageId
+    clearLastMessageId: clearLastMessageId,
+    checkUserExists: checkUserExists,
+    checkUserNickname: checkUserNickname
 };

@@ -10,6 +10,7 @@ const moneyKeyboard = require('./keyboards/moneyKeyboard'); // клавиату�
 
 
 
+
 // ------------------------------ ПОДКЛЮЧЕНИЕ БАЗЫ ДАННЫХ ---------------------------------
 (async function main() { 
     await DB.initialize();
@@ -41,21 +42,75 @@ bot.command('/stop', async (ctx)=>{
 
 // команда «‎/start» 
 bot.start(async (ctx) => {  
+    const userExists = await DB.checkUserExists(ctx.message.from.id);
+    console.log(userExists);
     setTimeout(async () => {
-        DB.addOrRefreshUser(ctx.message.from.id, ctx.message.from.first_name, async ()=>{
-            start(ctx, ctx.message.from.id);
-        });
+        if(userExists == false){
+            DB.addOrRefreshUser(ctx.message.from.id, ctx.message.from.username, async ()=>{
+                enterNickname(ctx);
+            });
+        } else{
+            DB.addOrRefreshUser(ctx.message.from.id, ctx.message.from.username, async ()=>{
+                start(ctx, ctx.message.from.id);
+            });
+        }
     }, 3000);
 }); 
 
+
+async function enterNickname(ctx){
+    const lastMessageId = await ctx.reply('Добро пожаловать! Введите ваш никнейм.');
+    DB.updateUserData('replace', ctx.update.message.from.id, 'lastMessageId', lastMessageId);
+}
+
+bot.on('text', async (ctx, next)=>{
+    let lastMessageId = await DB.getUserData(ctx.update.message.from.id, 'lastMessageId');
+    const activeScene = await DB.getUserData(ctx.message.from.id, 'activeScene'); 
+    if(activeScene == 'enter_your_name'){
+        if(ctx.update.message.text.indexOf(' ') > -1 || ctx.update.message.text.length > 18 || isRussian(ctx.update.message.text) == true || isValid(ctx.update.message.text) == false){
+            ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
+            DB.clearLastMessageId(ctx.update.message.from.id);
+
+            lastMessageId = await ctx.reply('Вы не можете ввести такой никнейм. Попробуйте снова.');
+            DB.updateUserData('replace', ctx.update.message.from.id, 'lastMessageId', lastMessageId);
+        }else if(await DB.checkUserNickname(ctx.update.message.text)){
+            ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
+            DB.clearLastMessageId(ctx.update.message.from.id);
+
+            lastMessageId = await ctx.reply('Пользователь с таким никнеймом существует. Введите другой ник.');
+            DB.updateUserData('replace', ctx.update.message.from.id, 'lastMessageId', lastMessageId);
+        }else{
+            ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
+            DB.clearLastMessageId(ctx.update.message.from.id);
+
+            DB.updateUserData('replace', ctx.update.message.from.id, 'userNickname', ctx.update.message.text);
+
+            const message = await ctx.reply('Добро пожаловать в игру, ' + ctx.update.message.text + '!');
+            
+            setTimeout(async () => {
+                ctx.deleteMessage(message.message_id, message.chat.id);
+
+                start(ctx, ctx.update.message.from.id);
+            }, 3000);
+        }
+    }
+    next();
+});
+
 // экшн «‎Сыграть еще раз» 
 bot.action('try_again', async (ctx) => {
+    let mainMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'mainMessageId'); 
+    if (Object.keys(mainMessageId).length != 0) {
+        ctx.deleteMessage(mainMessageId.message_id, mainMessageId.chat.id);
+    }
+    DB.clearMainMessageId(ctx.update.callback_query.from.id);
+
     setTimeout(async () => {
-        DB.addOrRefreshUser(ctx.update.callback_query.from.id, ctx.update.callback_query.from.first_name, async ()=>{
+        DB.addOrRefreshUser(ctx.update.callback_query.from.id, ctx.update.callback_query.from.username, async ()=>{
             start(ctx, ctx.update.callback_query.from.id);
         }); 
     }, 3000);
-});        
+});
 
 // функция для старта игры
 async function start(ctx, userId) {
@@ -65,12 +120,12 @@ async function start(ctx, userId) {
     // удаление главного сообщения из БД, когда его еще нет
     if(lastMessageId.text == 'Хотите сыграть в игру "Кто Хочет Стать Миллионером"?'){
         await new Promise(async response =>{
-            DB.clearMainMessageId(ctx.message.from.id, async ()=>{ 
+            DB.clearMainMessageId(userId, async ()=>{ 
                 mainMessageId = await DB.getUserData(userId, 'mainMessageId'); 
                 response();
             });
         });
-    }
+    } 
 
     if (Object.keys(mainMessageId).length != 0) {
         ctx.deleteMessage(mainMessageId.message_id, mainMessageId.chat.id);
@@ -96,6 +151,71 @@ async function start(ctx, userId) {
 
 
 
+// ------------------------------ СТАТИСТИКА ПОЛЬЗОВАТЕЛЯ ---------------------------------
+bot.action('statistic', async (ctx) => {
+    let lastMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'lastMessageId'); 
+    let gameCount = await DB.getUserData(ctx.update.callback_query.from.id, 'gameCount');
+    let userNickname = await DB.getUserData(ctx.update.callback_query.from.id, 'userNickname');
+    let winSum = await DB.getUserData(ctx.update.callback_query.from.id, 'winSum');
+    let winSumString = prettify(winSum) + ' руб.';
+
+    ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
+
+    const keyboard = Keyboard.make([
+        Key.callback('<<<<', 'back_to_menu'),
+    ], {
+        columns: 1
+    });
+    const lastMsg = await ctx.replyWithHTML(
+        'Статистика игрока ' + userNickname +':'+
+        '\n\n' +
+        'Сыграно игр: <code>' + gameCount + ' </code>' +
+        '\n'+
+        'Всего выиграно: <code>' + winSumString + '</code>', 
+        keyboard.inline()
+    ); 
+
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg);
+});
+
+bot.action('back_to_menu', async (ctx) =>{
+    start(ctx, ctx.update.callback_query.from.id);
+});
+
+
+
+
+// ------------------------------ РЕЙТИНГ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ ---------------------------------
+bot.action('rating', async (ctx)=>{
+    let lastMessageId = await DB.getUserData(ctx.update.callback_query.from.id, 'lastMessageId'); 
+    let users = await DB.users.find().sort({winSum: -1}).limit(10);
+    let stringRating = '';
+
+    ctx.deleteMessage(lastMessageId.message_id, lastMessageId.chat.id);
+
+    users.forEach((el, i)=>{
+        let winSumString = prettify(parseInt(el.winSum)) + ' руб.';
+        stringRating += i + 1 + ') ' +  el.userNickname + ' - <code>' + winSumString + '</code>\n';
+    });
+    
+    const keyboard = Keyboard.make([
+        Key.callback('<<<<', 'back_to_menu'),
+    ], {
+        columns: 1
+    });
+    const lastMsg = await ctx.replyWithHTML(
+        '<b>Топ-10 игроков:</b>' +
+        '\n\n' +
+        stringRating,
+        keyboard.inline()
+    ); 
+
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg);
+});
+
+
+
+
 // ------------------------------ ВЫБОР НЕСГОРАЕМОЙ СУММЫ ---------------------------------
 // вывод кнопок с суммами 
 bot.action('pick_sum', async (ctx) => {
@@ -112,7 +232,8 @@ bot.action('pick_sum', async (ctx) => {
 
 
 
-    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'activeScene', 'pick_sum');
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'activeScene', 'pick_sum'); 
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isButtonBlock', false); 
 });  
 
 // предупреждение: нельзя выбрать эту сумму
@@ -229,7 +350,11 @@ async function drawQuestionKeyboard(ctx){
     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
 
     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', true);
+
+
+
     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'activeScene', 'question');
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isButtonBlock', false); 
 }
 
 
@@ -243,7 +368,7 @@ bot.on('text', async ctx => {
     const isfiftyFifty = await DB.getUserData(ctx.message.from.id, 'prompts.fiftyFifty');
     const isSecondLife = await DB.getUserData(ctx.message.from.id, 'prompts.secondLife');
     const isChangeQuestion = await DB.getUserData(ctx.message.from.id, 'prompts.changeQuestion');
-    
+
     // если нажал на «‎50/50» 
     if (ctx.update.message.text == '50/50' && isfiftyFifty == true && isInGame == true) {
         ctx.deleteMessage();
@@ -458,6 +583,9 @@ bot.action('take_money_yes', async ctx => {
     const lastMsg = await ctx.replyWithHTML(`Вы забрали <code>${moneyKeyboard.money[questionCount-2]}</code>`, keyboard.inline());
     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
 
+    let gameCount = await DB.getUserData(ctx.update.callback_query.from.id, 'gameCount');
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'gameCount', ++gameCount);
+
     let winSum = await DB.getUserData(ctx.update.callback_query.from.id, 'winSum');
     let winSumString = moneyKeyboard.money[questionCount-2].replace(/\s+/g, ''); // удаление пробелов в строке
     let winSumNumber = parseInt(winSumString);
@@ -488,7 +616,9 @@ bot.action('say_no', async ctx => {
 
 // ------------------------------ РЕАКЦИИ НА НАЖАТИЯ INLINE-КНОПОК ---------------------------------
 bot.on('callback_query', async ctx => {  
-    const activeScene = await DB.getUserData(ctx.update.callback_query.from.id, 'activeScene');
+    const activeScene = await DB.getUserData(ctx.update.callback_query.from.id, 'activeScene'); 
+    const isButtonBlock = await DB.getUserData(ctx.update.callback_query.from.id, 'isButtonBlock');
+
 
     const currentAnswers = await DB.getUserData(ctx.update.callback_query.from.id, 'currentAnswers');
     const correctAnswer = await DB.getUserData(ctx.update.callback_query.from.id, 'correctAnswer');
@@ -496,8 +626,9 @@ bot.on('callback_query', async ctx => {
     const pickedMoney = await DB.getUserData(ctx.update.callback_query.from.id, 'pickedMoney');
 
     // проверка правильности ответа  
-    if (currentAnswers.includes(ctx.update.callback_query.data) && activeScene != 'check_answer') {
+    if (currentAnswers.includes(ctx.update.callback_query.data) && isButtonBlock == false && activeScene != 'check_answer') {
         DB.updateUserData('replace', ctx.update.callback_query.from.id, 'activeScene', 'check_answer');
+        DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isButtonBlock', true); 
 
 
 
@@ -526,9 +657,13 @@ bot.on('callback_query', async ctx => {
                     ]);
 
                     const lastMsg = await ctx.replyWithHTML('Вы победили! Ваш выигрыш: <code>3 000 000 рублей!</code>', keyboard.inline());
+
                     let winSum = await DB.getUserData(ctx.update.callback_query.from.id, 'winSum');
                     winSum += 3000000;
                     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'winSum', winSum);
+
+                    let gameCount = await DB.getUserData(ctx.update.callback_query.from.id, 'gameCount');
+                    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'gameCount', ++gameCount);
 
                     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
                     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', false);
@@ -537,7 +672,7 @@ bot.on('callback_query', async ctx => {
                     
                     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isInGame', false);
                     
-
+                    
 
 
                     setTimeout(async () => {  
@@ -580,6 +715,9 @@ bot.on('callback_query', async ctx => {
                 const correctAnswer = await DB.getUserData(ctx.update.callback_query.from.id, 'correctAnswer');
                 const pickedAnswer = await DB.getUserData(ctx.update.callback_query.from.id, 'pickedAnswer');
 
+                let gameCount = await DB.getUserData(ctx.update.callback_query.from.id, 'gameCount');
+                DB.updateUserData('replace', ctx.update.callback_query.from.id, 'gameCount', ++gameCount);
+
                 const pKeyboard = await promptsKeyboard.luseKeyboard(currentAnswers, pickedAnswer, correctAnswer);
                 const lastMsg = await ctx.replyWithHTML(`И это неправильный ответ. Вы проиграли!\n\nВаш выигрыш: <code>${gain}</code>`, pKeyboard.inline());
                 DB.updateUserData('replace', ctx.update.callback_query.from.id, 'lastMessageId', lastMsg); 
@@ -593,9 +731,12 @@ bot.on('callback_query', async ctx => {
     // добавление несгораемой суммы в БД
     if (moneyKeyboard.money.includes(ctx.update.callback_query.data)) {
         const activeScene = await DB.getUserData(ctx.update.callback_query.from.id, 'activeScene');
+        const isButtonBlock = await DB.getUserData(ctx.update.callback_query.from.id, 'isButtonBlock');
 
-        if(activeScene != 'message_picked_sum'){
+
+        if(activeScene != 'message_picked_sum' && isButtonBlock == false){
             DB.updateUserData('replace', ctx.update.callback_query.from.id, 'activeScene', 'message_picked_sum');
+            DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isButtonBlock', true); 
 
             
             ctx.deleteMessage(); 
@@ -631,6 +772,11 @@ function shuffle(arr) {
     }
     return arr;
 }
+
+function prettify(num) {
+    var n = num.toString();
+    return n.replace(/(\d{1,3}(?=(?:\d\d\d)+(?!\d)))/g, "$1" + ' ');
+}
  
 
 async function drawSecondLifeButtons(ctx){
@@ -655,4 +801,14 @@ async function drawSecondLifeButtons(ctx){
     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isSecondLife', false);
 
     DB.updateUserData('replace', ctx.update.callback_query.from.id, 'activeScene', 'question');
+    DB.updateUserData('replace', ctx.update.callback_query.from.id, 'isButtonBlock', false); 
 }
+
+function isRussian(text) {
+    return /[А-яЁё]/i.test(text); 
+}
+
+function isValid(str){
+    return !/[~`!#$%\^&*+=\-\[\]\\';,/{}|\\":<>\?]/g.test(str);
+}
+
