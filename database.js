@@ -1,334 +1,46 @@
+// ------------------------------ ИМПОРТЫ ---------------------------------
 const mongoose = require(`mongoose`);
 require('dotenv').config();
 
-// ДОСТАЕМ СХЕМУ
-const Schema = mongoose.Schema;
 
+
+
+
+// ------------------------------ РАБОТА СО СХЕМАМИ ---------------------------------
+const Schema = mongoose.Schema; 
+
+// схема вопросов
 const queSchema = Schema({
-    question: String,
-    answers: Array
+    question: String, // текст вопроса
+    answers: Array // массив с вариантами ответа
 });
 
+// схема пользователя
 const userSchema = Schema({
-    _id: Number,
-    userName: String,
-    userNickname: String,
-    questionCount: Number,
-    passedQuestions: Array,
-    currentQuestion: String,
-    currentAnswers: Array,
-    correctAnswer: String,
-    pickedAnswer: String,
-    lastMessageId: Object,
-    mainMessageId: Object,
-    isInGame: Boolean,
-    isSecondLife: Boolean,
-    prompts: Object,
-    pickedMoney: String,
-    isButtonBlock: Boolean, 
-    activeScene: String,
-    winSum: Number,
-    gameCount: Number
+    _id: Number, // уникальный идентификатор
+    userName: String, // логин пользователя
+    userNickname: String, // никнейм пользователя
+    userStatistic: Object, // статистика пользователя
+    currentGame: Object, // данные текущей игры
+    messages: Object, // сообщения в чате
+    isButtonBlock: Boolean,  // заблокированы ли кнопки
+    activeScene: String, // активная сцена
 }, {
-    minimize: false // по умолчанию minimize стоит true, что означает, что пустые объекты на будут заноситься в базу при создании
+    minimize: false // по умолчанию minimize стоит true, что означает, что пустые объекты не будут заноситься в базу при создании
 });
 
-
-// ДОСТАЕМ МОДЕЛЬ КОЛЛЕКЦИИ 
+// модели из коллекций 
 const questionsLvl0 = mongoose.model('lvl0', queSchema);
-const questionsLvl1 = mongoose.model('lvl1', queSchema); // (Название коллекции, Схема)
+const questionsLvl1 = mongoose.model('lvl1', queSchema);  
 const questionsLvl2 = mongoose.model('lvl2', queSchema);
 const questionsLvl3 = mongoose.model('lvl3', queSchema);
 const users = mongoose.model('users', userSchema);
 
 
-// console.log(typeof(questionsLvl0));
-// СОЗДАЕТ И ДОБАВЛЯЕТ
-// users.create({
-//     _id: 12312333,
-//     userName: 'igoryosha',
-//     kek: questionsLvl3
-// }).then((user)=>{
-//     users.find({}).exec(async (err, res)=>{
-//         if(err){
-//             console.log(err);
-//             return;
-//         }
-//         console.log('res0: '+res[0].userName);   
-//     });
-//     console.log(user);   
-// }).catch(err=>{
-//     console.log(err);
-// });
-
-//ИЩЕТ И АПДЕЙТИТ
-// users.findOneAndUpdate({_id: 369591320}, {
-//     userName: 'Я 123123'   
-// }).then(()=>{
-//     users.find({}).exec((err, res)=>{
-//         console.log(res[0].userName); 
-//     });
-// });
-
-//ДОСТАЕТ ПОЛНУЮ ТАБЛИЦУ
-// questionsLvl0.find({}, (err, res)=>{
-//     console.log('kek '+res[0].question)
-// });
-
-//ПОМЕСТИТЬ ДАННЫЕ В ОТДЕЛЬНУЮ ПЕРЕМЕННУЮ
-// async function getRes(){
-//     let myDate = await users.find({_id: 369591320});
-//     console.log(myDate[0].userName);
-// }
-// getRes();
-
-
-// ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯ В БАЗУ ДАННЫХ 
-async function addOrRefreshUser(userId, userName, callback) {
-    users.find({
-        _id: userId,
-    }, (err, res) => {
-        if (res[0] == undefined) {
-            users.create({
-                _id: userId,
-                userName: userName, 
-                userNickname: '',
-                questionCount: 1,
-                passedQuestions: [],
-                currentQuestion: '',
-                currentAnswers: [],
-                correctAnswer: '',
-                pickedAnswer: '',
-                lastMessageId: {},
-                mainMessageId: {},
-                isInGame: false,
-                isSecondLife: false,
-                prompts: {
-                    fiftyFifty: true,
-                    secondLife: true,
-                    changeQuestion: true
-                },
-                pickedMoney: '',
-                isButtonBlock: false,
-                activeScene: 'enter_your_name',
-                winSum: 0,
-                gameCount: 0
-            }).then(()=>{
-                if(callback != null){
-                    callback();
-                }
-            });
-        } else {
-            users.findOneAndUpdate({
-                _id: res[0]._id
-            }, {
-                questionCount: 1,
-                passedQuestions: [],
-                currentQuestion: '',
-                currentAnswers: [],
-                correctAnswer: '',
-                pickedAnswer: '',
-                isInGame: false,
-                isSecondLife: false,
-                prompts: {
-                    fiftyFifty: true,
-                    secondLife: true,
-                    changeQuestion: true
-                },
-                pickedMoney: '',
-                isButtonBlock: false,
-                activeScene: 'hello_scene'
-            }).then(() => { // почему-то без .then не работает
-                if(callback != null){
-                   callback();
-                }
-            });
-        }
-    }); 
-}
-
-async function checkUserExists(userId){
-    let arr = await users.find({_id: userId});
-    if(arr[0] == undefined){
-        return false;
-    }else{
-        return true;
-    }
-}
-
-async function checkUserNickname(nickname){
-    let regex = new RegExp(["^", nickname, "$"].join(""), "i"); // игнор регистра
-    let arr = await users.find({userNickname: regex});
-    if(arr[0] == undefined){
-        return false;
-    } else{
-        return true;
-    }
-}
 
 
 
-async function updateUserData(pushOrReplace, userId, attribute, data, callback) { // callback - то, что будет выполняться после апдейта
-    if(pushOrReplace == 'replace'){
-        if(attribute.substr(-3, 1) == '[' && isNaN(attribute.substr(-2, 1)) == false && attribute.substr(-1) == ']'){
-            let str = attribute.slice(0, -3);
-            let index = attribute.substr(-2, 1);
-            let attr = str + '.' + index;
-
-            users.findOneAndUpdate({
-                _id: userId
-            },{
-                $set:{
-                    [attr]: await data,
-                }
-            }).then(()=>{
-                if(callback != null){
-                    callback();
-                }
-            });
-        } else{
-            users.findOneAndUpdate({
-                _id: userId
-            }, {
-                [attribute]: await data
-            }).then(() => {
-                if(callback != null){
-                    callback();  
-                }
-            });
-        }
-    } else if(pushOrReplace == 'push'){
-        users.findOneAndUpdate({
-            _id: userId
-        }, {
-            $push: {
-                [attribute]: await data
-            } 
-        }).then(()=>{
-            if(callback != null){
-                callback();
-            }
-        });
-    }
-}
-
-async function clearMainMessageId(userId, callback){
-    users.findOneAndUpdate({
-        _id: userId
-    },{
-        $set:{
-            'mainMessageId': {},
-        }
-    }).then(()=>{
-        if(callback != null){
-            callback();
-        }
-    });
-}
-async function clearLastMessageId(userId, callback){
-    users.findOneAndUpdate({
-        _id: userId
-    },{
-        $set:{
-            'lastMessageId': {},
-        }
-    }).then(()=>{
-        if(callback != null){
-            callback();
-        }
-    });
-}
-
-
-
-
-
-async function getUserData(userId, attribute) { 
-    let data = await users.find({ 
-        _id: userId
-    }, {
-        [attribute]: true+1 // true означает, что это поле будет выводиться, +1 на случай, если мы ищем boolean значения
-    }); // find(какого юзера ищем, поля для вывода, функция)
-    let stringCode = 'data[0].'+attribute;
-    let result = eval(stringCode);
-    return result;
-}
-
- 
-
-
-// ДОСТАЕМ ВСЕ ЗАПИСИ ИЗ КОЛЛЕКЦИИ
-questionsLvl0.find({}).exec((err, res) => {
-    if (err) {
-        console.log(err);
-        return;
-    }
-    console.log('res0: ' + res[5].question); // ДОСТАЮ ПЕРВУЮ ЗАПИСЬ В КОЛЛЕКЦИИ Lvl1
-});
-questionsLvl1.find({}).exec((err, res) => {
-    if (err) {
-        console.log(err);
-        return;
-    }
-    console.log('res1: ' + res[5].question); // ДОСТАЮ ПЕРВУЮ ЗАПИСЬ В КОЛЛЕКЦИИ Lvl1
-});
-questionsLvl2.find({}).exec((err, res) => {
-    if (err) {
-        console.log(err);
-        return;
-    }
-    console.log('res2: ' + res[0].question); // ДОСТАЮ ПЕРВУЮ ЗАПИСЬ В КОЛЛЕКЦИИ Lvl2
-});
-
-questionsLvl3.find({}).exec((err, res) => {
-    if (err) {
-        console.log(err);
-        return;
-    }
-    console.log('res3: ' + res[0].question); // ДОСТАЮ ПЕРВУЮ ЗАПИСЬ В КОЛЛЕКЦИИ Lvl3
-});
-
-
-
-
-// const userSchema = new mongoose.Schema({
-//     name:{
-//         type: String,
-//         required: true,
-//     },
-//     email:{
-//         type: String,
-//         required: true,
-//     }
-// });
-
-// const Users = mongoose.model('Users', userSchema);
-
-// app.get('/', (req, res) => {
-//     Users.create({
-//         name: 'Igor2',
-//         email: 'satafakapchannel@gmail.com',
-//     })
-//     .then(user => {
-//         res.send(user);
-
-//     })
-//     .catch(err => res.send(err));
-// });
-
-// const server = createServer(app);
-// server.listen(port, () => console.log(`server is up. port: ${port}`));
-
-
-
-
-
-
-
-
-
- 
-// ФУНКЦИЯ ДЛЯ ПОДКЛЮЧЕНИЯ БАЗЫ MONGODB
+// ------------------------------ ПОДКЛЮЧЕНИЕ БД ---------------------------------
 async function initialize() {
     // ПЕРЕДАЕМ ССЫЛКУ И НАСТРОЙКИ
     await mongoose.connect(process.env.MONGO, {
@@ -344,8 +56,172 @@ async function initialize() {
 
 
 
+// ------------------------------ РАБОТА С БД ---------------------------------
+// добавление пользователя в бд
+function createNewUser(userId, userName, callback){
+    users.create({
+        _id: userId, 
+        userName: userName, 
+        userNickname: '', 
+        userStatistic: {
+            winSum: 0, 
+            gameCount: 0 
+        },
+        currentGame: {
+            questionCount: 1,
+            currentQuestion: '',
+            passedQuestions: [],
+            currentAnswers: [],
+            correctAnswer: '',
+            pickedAnswer: '',
+            isInGame: false,
+            isSecondLife: false,
+            prompts: {
+                fiftyFifty: true,
+                secondLife: true,
+                changeQuestion: true
+            },
+            pickedMoney: '',
+        },
+        messages: {
+            lastMessageId: {},
+            mainMessageId: {},
+        },  
+        isButtonBlock: false,
+        activeScene: 'enter_your_name'
+    }).then(()=>{
+        if(callback != null){
+            callback();
+        }
+    });
+}
 
-// ЭКСПОРТЫ
+// обнуление данных пользователя
+function refreshUserData(userId, callback) {
+    users.findOneAndUpdate({
+        _id: userId
+    }, {
+        currentGame: {
+            questionCount: 1,
+            currentQuestion: '',
+            passedQuestions: [],
+            currentAnswers: [],
+            correctAnswer: '',
+            pickedAnswer: '',
+            isInGame: false,
+            isSecondLife: false,
+            prompts: {
+                fiftyFifty: true,
+                secondLife: true,
+                changeQuestion: true
+            },
+            pickedMoney: '',
+        },
+        isButtonBlock: false,
+        activeScene: 'hello_scene'
+    }).then(() => { // без .then не работает
+        if(callback != null){
+           callback(); 
+        }
+    });
+}
+
+// апдейт данных пользователя
+function updateUserData(userId, attribute, data, callback) { // callback - то, что будет выполняться после апдейта
+    users.findOneAndUpdate({
+        _id: userId
+    }, {
+        [attribute]: data
+    }).then(() => {
+        if(callback != null){
+            callback();  
+        }
+    });
+}
+
+// пуш данных в массив 
+function pushUserData(userId, attribute, data, callback) {
+    users.findOneAndUpdate({
+        _id: userId
+    }, {
+        $push: {
+            [attribute]: data
+        } 
+    }).then(()=>{
+        if(callback != null){
+            callback();
+        }
+    });
+}
+
+// получение данных пользователя
+async function getUserData(userId, attribute) { 
+    let data = await users.find({ 
+        _id: userId
+    }, {
+        [attribute]: true + 1 // true означает, что это поле будет выводиться, +1 на случай, если мы ищем boolean значения
+    }); // find(какого юзера ищем, поля для вывода, функция)
+    let stringCode = 'data[0].'+ attribute; // т.к. attribute - строка, которая может иметь несколько вложенностей для поиска объекта, 
+                                            // необходимо сделать строчку, которую eval преобразует в код
+    let result = eval(stringCode); 
+    return result;
+}
+
+// удаление главного сообщения в БД
+async function removeMainMessage(userId, callback){
+    users.findOneAndUpdate({
+        _id: userId
+    },{
+        $set:{
+            'messages.mainMessageId': {},
+        }
+    }).then(()=>{
+        if(callback != null){
+            callback();
+        }
+    });
+}
+
+// удаление последнего сообщения в БД
+function removeLastMessage(userId, callback){
+    users.findOneAndUpdate({
+        _id: userId
+    },{
+        $set:{
+            'messages.lastMessageId': {},
+        }
+    }).then(()=>{
+        if(callback != null){
+            callback();
+        }
+    });
+}
+
+// проверка на существование пользователя в БД
+async function checkUserExists(userId){
+    let arr = await users.find({_id: userId});
+    if(arr[0] == undefined){
+        return false;
+    }else{
+        return true;
+    }
+}
+
+// проверка, есть ли такой никнейм в БД
+async function checkUserNickname(nickname){
+    let regex = new RegExp(nickname, 'i'); // игнор регистра
+    let arr = await users.find({userNickname: regex});
+    if(arr[0] == undefined){
+        return false;
+    } else{
+        return true;
+    }
+}
+
+
+
+
+
 module.exports = {
     initialize: initialize,
     questionsLvl0: questionsLvl0,
@@ -353,11 +229,25 @@ module.exports = {
     questionsLvl2: questionsLvl2,
     questionsLvl3: questionsLvl3,
     users: users,
-    addOrRefreshUser: addOrRefreshUser,
     updateUserData: updateUserData,
     getUserData: getUserData,
-    clearMainMessageId: clearMainMessageId,
-    clearLastMessageId: clearLastMessageId,
+    removeMainMessage: removeMainMessage,
+    removeLastMessage: removeLastMessage,
     checkUserExists: checkUserExists,
-    checkUserNickname: checkUserNickname
+    checkUserNickname: checkUserNickname,
+    createNewUser: createNewUser,
+    refreshUserData: refreshUserData,
+    pushUserData: pushUserData
 };
+
+
+
+
+
+
+
+
+
+
+
+

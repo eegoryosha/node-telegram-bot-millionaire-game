@@ -1,6 +1,12 @@
-const {Keyboard, Key} = require('telegram-keyboard');
+// ------------------------------ ИМПОРТЫ ---------------------------------
+const { Keyboard, Key } = require('telegram-keyboard');
 const DB = require('../database');
 
+
+
+
+
+// ------------------------------ ПОДСКАЗКИ ---------------------------------
 let fiftyFifty = {
     activeName: '50/50',
     inActiveName: '✖5̶0̶/̶5̶0̶✖',
@@ -18,45 +24,30 @@ let changeQuestion = {
 };
 
 
-async function keyboard(userId){ 
-    const isfiftyFifty = await DB.getUserData(userId, 'prompts.fiftyFifty');
-    const isSecondLife = await DB.getUserData(userId, 'prompts.secondLife');
-    const isChaneQuestion = await DB.getUserData(userId, 'prompts.changeQuestion');
+
+
+
+// ------------------------------ КЛАВИАТУРЫ ---------------------------------
+// клавиатура с выбором подсказок 
+async function keyboard(userId) { 
+    const isfiftyFifty = await DB.getUserData(userId, 'currentGame.prompts.fiftyFifty');
+    const isSecondLife = await DB.getUserData(userId, 'currentGame.prompts.secondLife');
+    const isChangeQuestion = await DB.getUserData(userId, 'currentGame.prompts.changeQuestion');
 
     const keyboard = Keyboard.make([
         Key.callback(isfiftyFifty ? fiftyFifty.activeName : fiftyFifty.inActiveName),
         Key.callback(isSecondLife ? secondLife.activeName : secondLife.inActiveName),
-        Key.callback(isChaneQuestion ? changeQuestion.activeName : changeQuestion.inActiveName), 
+        Key.callback(isChangeQuestion ? changeQuestion.activeName : changeQuestion.inActiveName), 
         Key.callback('Забрать деньги')
     ], {
         columns: 2
     });
+
     return keyboard;
 }
 
-
-
-// /////////////////////////////////////////
-// async function foo(attribute){
-//     let isObject = false;
-//     let kek = await DB.users.find({_id: 369591320},{
-//         [attribute]: true+1,
-//         _id: false
-//     });
-
-//     let vlozhennost = 'kek[0]'+'.'+attribute;
-//     let itog = eval(vlozhennost);
-//     console.log(itog);    
-    
-//     console.log(isObject);
-// }
-// foo('prompts.fiftyFifty.asd');
-
-
-
-
-
-function defaultAnswersKeyboard(arr){ 
+// клавиатура с вариантами ответа 
+function defaultAnswersKeyboard(arr) { 
     const keyboard = Keyboard.make([
         Key.callback(arr[0] == ' ' ? ' ' : 'A) ' + arr[0], arr[0]),
         Key.callback(arr[1] == ' ' ? ' ' : 'B) ' + arr[1], arr[1]),
@@ -65,10 +56,12 @@ function defaultAnswersKeyboard(arr){
     ], {
         columns: 1
     });
+
     return keyboard;
 }
 
-async function secondLifeKeyboard(arr, pickedAnswer){
+// клавиатура если реализована подсказка «Вторая жизнь»‎ 
+async function secondLifeKeyboard(arr, pickedAnswer) {
     const keyboard = Keyboard.make([
         Key.callback(await createSecondLifeButtons('A)', await arr[0]), await arr[0]),
         Key.callback(await createSecondLifeButtons('B)', await arr[1]), await arr[1]),
@@ -77,6 +70,7 @@ async function secondLifeKeyboard(arr, pickedAnswer){
     ], {
         columns: 1
     });
+
     async function createSecondLifeButtons(letter, answer) {
         switch (answer) {
             case await pickedAnswer:
@@ -87,34 +81,41 @@ async function secondLifeKeyboard(arr, pickedAnswer){
                 return letter + ' ' + await answer;
         }
     }
+
     return keyboard;
 }
 
-async function luseKeyboard(arr, pickedAnswer, correctAnswer){
+// клавиатура во время проигрыша
+async function luseKeyboard(arr, pickedAnswer, correctAnswer) {
     const keyboard = Keyboard.make([ 
-        Key.callback(await createLuseButtons('A)', await arr[0])),
-        Key.callback(await createLuseButtons('B)', await arr[1])),
-        Key.callback(await createLuseButtons('C)', await arr[2])), 
-        Key.callback(await createLuseButtons('D)', await arr[3])),
+        Key.callback(await createLuseButtons('A)', arr[0])),
+        Key.callback(await createLuseButtons('B)', arr[1])),
+        Key.callback(await createLuseButtons('C)', arr[2])), 
+        Key.callback(await createLuseButtons('D)', arr[3])),
         Key.callback(' '),
         Key.callback('Попробовать снова', 'try_again')
     ], { 
         columns: 1
     });
-    async function createLuseButtons(letter, answer) {
+    async function createLuseButtons(letter, answer) { 
         switch (answer) {
             case await correctAnswer:
-                return letter + ' ' + await answer + ' ✅';
+                return letter + ' ' + answer + ' ✅';
             case await pickedAnswer:
-                return letter + ' ' + await answer + ' ❌';
+                return letter + ' ' + answer + ' ❌';
             case ' ':
                 return ' ';
             default:
-                return letter + ' ' + await answer;
+                return letter + ' ' + answer;
         }
     }
+
     return keyboard;
 }
+
+
+
+
 
 module.exports = {
     keyboard: keyboard,
